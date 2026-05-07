@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: pizza4ps-mis
+    runtime: python
+    buildCommand: cd frontend && npm install && npm run build && cd .. && pip install -r backend/requirements.txt
+    startCommand: cd backend && uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: ALGORITHM
+        value: HS256
+      - key: ACCESS_TOKEN_EXPIRE_MINUTES
+        value: 1440
+      - key: UPLOAD_DIR
+        value: /tmp/uploads
+      # Set these manually in Render dashboard (sensitive):
+      # SECRET_KEY      → generate a strong random string
+      # ADMIN_USERNAME  → your admin login username
+      # ADMIN_PASSWORD  → your admin login password
+      # DATABASE_URL    → postgresql://... (Supabase connection string, optional)
