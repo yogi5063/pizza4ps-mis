@@ -1,0 +1,7 @@
+# Caddy automatically gets and renews a free HTTPS certificate for this domain.
+# Requirements: the domain's DNS must point to this server's IP, and ports
+# 80 and 443 must be open in the Lightsail firewall.
+pizza4ps.bclworkspace.in {
+    encode gzip
+    reverse_proxy app:8000
+}

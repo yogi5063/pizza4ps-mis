@@ -1,0 +1,36 @@
+# Pizza 4P's MIS — production stack
+#
+#   app   = the dashboard (FastAPI + built React frontend)  → internal port 8000
+#   caddy = reverse proxy that terminates HTTPS and forwards traffic to "app"
+#           Caddy automatically obtains & renews a free Let's Encrypt SSL cert.
+#
+# Start everything with:   docker compose up -d --build
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      # Keeps your database and uploaded files safe across restarts/rebuilds
+      - app-data:/data
+    expose:
+      - "8000"
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"     # required by Let's Encrypt to issue the certificate
+      - "443:443"   # HTTPS
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - app
+
+volumes:
+  app-data:
+  caddy-data:
+  caddy-config:
