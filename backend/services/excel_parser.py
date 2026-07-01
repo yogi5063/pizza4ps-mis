@@ -190,6 +190,8 @@ def parse_revenue_file(file_path: str, month_key: str) -> Dict[str, Any]:
     raw_df: Optional[pd.DataFrame] = None
     used_sheet = None
 
+    # 1. Exact known sheet names first (preserves behaviour for files that
+    #    already parse, e.g. Jan '_1st Jan' / Feb '_1st Mar').
     for candidate in REVENUE_SHEET_CANDIDATES:
         # Also try case-insensitive match
         matched_sheet = next(
@@ -207,17 +209,55 @@ def parse_revenue_file(file_path: str, month_key: str) -> Dict[str, Any]:
                 logger.info("Using sheet '%s'", used_sheet)
                 break
 
+    # 2. Fallback: any "Detail (Recalculate)*" sheet. Month-to-month the suffix
+    #    varies (recalc date), so match by prefix. Prefer a non-draft/copy sheet
+    #    (e.g. Aug has a fuller '_09 Sep' final vs a '_Draft 01 A').
+    if raw_df is None:
+        detail = [s for s in sheet_names
+                  if _re.match(r"detail \(recalculate\)", s.strip(), _re.I)]
+        non_draft = [s for s in detail if not _re.search(r"draft|copy", s, _re.I)]
+        for matched_sheet in (non_draft or detail):
+            df_try = _read_excel_sheet(file_path, matched_sheet, header=None, engine=engine)
+            if df_try is not None and len(df_try) > 4:
+                raw_df = df_try
+                used_sheet = matched_sheet
+                logger.info("Using fallback detail sheet '%s'", used_sheet)
+                break
+
     if raw_df is None:
         raise ValueError(
             f"No suitable revenue sheet found in {file_path}. "
             f"Available: {sheet_names}"
         )
 
-    # Header is at index 2 (0-based), data starts at index 3
-    header_row = raw_df.iloc[2].tolist()
-    data_rows = raw_df.iloc[3:].reset_index(drop=True)
-    data_rows.columns = [str(h).strip() if pd.notna(h) else f"_col{i}"
-                         for i, h in enumerate(header_row)]
+    # The header row position drifts across months (index 1, 2 or 3). Detect it
+    # by finding the first of the top rows that contains the "Net amount" column;
+    # data starts on the following row. Fall back to index 2 (original default).
+    header_idx = 2
+    for i in range(min(6, len(raw_df))):
+        row_vals = [str(v).strip().lower() for v in raw_df.iloc[i].tolist()
+                    if pd.notna(v)]
+        if any("net amount" in v for v in row_vals):
+            header_idx = i
+            break
+    logger.info("Detected header row at index %d", header_idx)
+
+    header_row = raw_df.iloc[header_idx].tolist()
+    data_rows = raw_df.iloc[header_idx + 1:].reset_index(drop=True)
+    # Some months repeat a header label (e.g. 'check_no' twice). Duplicate
+    # column labels make row[col] return a Series -> "truth value ambiguous".
+    # De-duplicate so every label is unique (first keeps its name).
+    _seen: Dict[str, int] = {}
+    _cols = []
+    for i, h in enumerate(header_row):
+        name = str(h).strip() if pd.notna(h) else f"_col{i}"
+        if name in _seen:
+            _seen[name] += 1
+            name = f"{name}_{_seen[name]}"
+        else:
+            _seen[name] = 0
+        _cols.append(name)
+    data_rows.columns = _cols
 
     cols = list(data_rows.columns)
 
