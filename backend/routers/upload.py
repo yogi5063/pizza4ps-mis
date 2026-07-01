@@ -153,8 +153,9 @@ async def upload_revenue(
 ):
     """Upload a Revenue Excel file for a given month."""
     import re
-    # Parse multipart with 100MB limit
-    form = await request.form(max_files=10, max_fields=20, max_part_size=100 * 1024 * 1024)
+    # Parse multipart. NOTE: max_part_size is unsupported on Starlette <1.0
+    # (fastapi 0.111 pins 0.37.2) and raises TypeError -> 500 on every upload.
+    form = await request.form(max_files=10, max_fields=20)
     file = form.get("file")
     month_key = form.get("month_key", "")
 
@@ -195,7 +196,7 @@ async def upload_cogs(
 ):
     """Upload a COGS Excel file for a given month."""
     import re
-    form = await request.form(max_files=10, max_fields=20, max_part_size=100 * 1024 * 1024)
+    form = await request.form(max_files=10, max_fields=20)
     file = form.get("file")
     month_key = form.get("month_key", "")
 
@@ -284,7 +285,7 @@ async def upload_pnl(
 ):
     """Upload a P&L Excel/xlsb file for a given month."""
     import re
-    form = await request.form(max_files=10, max_fields=20, max_part_size=100 * 1024 * 1024)
+    form = await request.form(max_files=10, max_fields=20)
     file = form.get("file")
     month_key = form.get("month_key", "")
 
@@ -320,7 +321,7 @@ async def upload_pnl_budget(
     current_user: User = Depends(get_current_user),
 ):
     """Upload a P&L budget CSV/Excel file (covers multiple months)."""
-    form = await request.form(max_files=10, max_fields=20, max_part_size=20 * 1024 * 1024)
+    form = await request.form(max_files=10, max_fields=20)
     file = form.get("file")
 
     if not file or not hasattr(file, "read"):
@@ -407,7 +408,7 @@ async def upload_bs(
       mode=month            – single month; month_key required in form data
     """
     import re
-    form = await request.form(max_files=10, max_fields=20, max_part_size=100 * 1024 * 1024)
+    form = await request.form(max_files=10, max_fields=20)
     file = form.get("file")
     month_key = form.get("month_key", "") or ""
 
