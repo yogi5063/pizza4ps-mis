@@ -1149,12 +1149,15 @@ def _parse_bs_sheet(wb):
     # Cols 4, 5 = Jan 2024, Feb 2024
     # Cols 7-14 = Apr-Nov 2024 first set (skipped; prefer cols 16-23)
     # Col 15 = null spacer
-    # Cols 16-38 = Apr 2024 to Jan 2026 (canonical monthly set)
+    # Cols 16+ = Apr 2024 onward (canonical monthly set). Scan to the LAST
+    # populated column so newly-appended months appear automatically — do NOT
+    # hardcode an end column, or future months get silently dropped.
     month_col_map = {}
     month_col_map["2024-01"] = 4
     month_col_map["2024-02"] = 5
     month_col_map["2024-03"] = 3          # YE value
-    for col_idx in range(16, 39):
+    last_col = max(header.keys()) if header else 38
+    for col_idx in range(16, last_col + 1):
         val = header.get(col_idx)
         if isinstance(val, (int, float)) and val > 40000:
             ym = _excel_to_ym(val)
