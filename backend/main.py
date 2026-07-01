@@ -54,11 +54,13 @@ from routers.auth import router as auth_router
 from routers.upload import router as upload_router
 from routers.data import router as data_router
 from routers.settings import router as settings_router
+from routers.masters import router as masters_router
 
 app.include_router(auth_router, prefix="/api")
 app.include_router(upload_router, prefix="/api")
 app.include_router(data_router, prefix="/api")
 app.include_router(settings_router, prefix="/api")
+app.include_router(masters_router, prefix="/api")
 
 # ── Static files – serve React SPA from frontend/dist ────────────────────────
 # Path(__file__).parent = backend/  →  .parent = repo root
@@ -98,6 +100,15 @@ async def startup_event():
         logger.info("Default admin user verified.")
     finally:
         db.close()
+
+    # 2b. Seed geography masters (Country -> Location -> Outlet) once
+    from routers.masters import seed_masters
+    db_seed = SessionLocal()
+    try:
+        seed_masters(db_seed)
+        logger.info("Geography masters verified/seeded.")
+    finally:
+        db_seed.close()
 
     # 3. Ensure uploads directory exists
     upload_dir = Path(os.getenv("UPLOAD_DIR", "./uploads"))
