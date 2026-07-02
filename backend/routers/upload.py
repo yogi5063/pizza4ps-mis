@@ -506,6 +506,7 @@ async def get_upload_status(
 async def download_uploaded_file(
     module: str,
     month_key: str,
+    store_code: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -516,11 +517,19 @@ async def download_uploaded_file(
     """
     from fastapi.responses import FileResponse
 
-    record = (
-        db.query(UploadedMonth)
-        .filter(UploadedMonth.module == module, UploadedMonth.month_key == month_key)
-        .first()
+    q = db.query(UploadedMonth).filter(
+        UploadedMonth.module == module, UploadedMonth.month_key == month_key
     )
+    if store_code:
+        q = q.filter(UploadedMonth.store_code == store_code)
+    else:
+        q = q.filter(UploadedMonth.store_code.is_(None))
+    record = q.first()
+    if not record:
+        # fallback: any record for this module/month
+        record = db.query(UploadedMonth).filter(
+            UploadedMonth.module == module, UploadedMonth.month_key == month_key
+        ).first()
     if not record or not record.stored_filename:
         raise HTTPException(status_code=404, detail="No uploaded file on record")
     path = UPLOAD_DIR / record.stored_filename
