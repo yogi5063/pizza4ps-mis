@@ -1,68 +1,20 @@
 import React from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-
-const NAV_SECTIONS = [
-  {
-    label: 'OVERVIEW',
-    items: [
-      { icon: '⚡', label: 'Daily Flash', path: '/daily-flash' },
-    ]
-  },
-  {
-    label: 'REVENUE INTELLIGENCE',
-    items: [
-      { icon: '📊', label: 'Overview', path: '/overview' },
-      { icon: '📅', label: 'Monthly Detail', path: '/monthly' },
-      { icon: '⚖️', label: 'Comparison', path: '/comparison' },
-      { icon: '🍽️', label: 'Item Analysis', path: '/items' },
-      { icon: '📦', label: 'COGS & Margin', path: '/cogs' },
-      { icon: '🎯', label: 'Targets & Budget', path: '/targets' },
-    ]
-  },
-  {
-    label: 'FINANCIAL STATEMENTS',
-    items: [
-      { icon: '📄', label: 'P&L Statement', path: '/pl' },
-      { icon: '⚖️', label: 'Balance Sheet', path: '/bs' },
-      { icon: '💸', label: 'Cash Flow', path: '/cashflow', stub: true },
-    ]
-  },
-  {
-    label: 'SALES ANALYTICS',
-    items: [
-      { icon: '📈', label: 'Sales vs COGS', path: '/sales-vs-cogs' },
-      { icon: '🏷️', label: 'Discount Analysis', path: '/discount' },
-      { icon: '❌', label: 'Voids & Cancels', path: '/voids' },
-      { icon: '🧾', label: 'GST Summary', path: '/gst' },
-    ]
-  },
-  {
-    label: 'OPERATIONS',
-    items: [
-      { icon: '🪑', label: 'Table Performance', path: '/table-performance' },
-      { icon: '🏆', label: 'Top Invoices', path: '/top-invoices' },
-      { icon: '👥', label: 'Cover Analytics', path: '/covers' },
-    ]
-  },
-  {
-    label: 'INVENTORY',
-    items: [
-      { icon: '🔍', label: 'Inventory Intel', path: '/inventory' },
-      { icon: '⭐', label: 'Menu Engineering', path: '/menu-engineering' },
-    ]
-  },
-  {
-    label: 'ADMIN',
-    items: [
-      { icon: '⚙️', label: 'Data Upload', path: '/admin' },
-      { icon: '✅', label: 'Month-End Close', path: '/month-end' },
-    ]
-  },
-]
+import useAuthStore from '../store/authStore'
+import { NAV_SECTIONS, pageKey, canView } from '../utils/nav'
 
 export default function Sidebar({ collapsed, onToggle }) {
   const navigate = useNavigate()
   const location = useLocation()
+  const { me, clear } = useAuthStore()
+
+  // Only show sections/items this user is allowed to open (stubs always shown).
+  const sections = NAV_SECTIONS
+    .map(s => ({
+      ...s,
+      items: s.items.filter(i => i.stub || canView(me, pageKey(i.path))),
+    }))
+    .filter(s => s.items.length > 0)
 
   function handleNav(path, stub) {
     if (stub) return
@@ -71,6 +23,7 @@ export default function Sidebar({ collapsed, onToggle }) {
 
   function handleLogout() {
     localStorage.removeItem('token')
+    clear()
     navigate('/login')
   }
 
@@ -104,7 +57,7 @@ export default function Sidebar({ collapsed, onToggle }) {
 
       {/* Nav items */}
       <div className="flex-1 overflow-y-auto py-3" style={{ scrollbarWidth: 'none' }}>
-        {NAV_SECTIONS.map((section, si) => (
+        {sections.map((section, si) => (
           <div key={si} className="mb-1">
             {!collapsed && (
               <div

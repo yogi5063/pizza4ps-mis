@@ -1,9 +1,12 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '../utils/api'
+import useAuthStore from '../store/authStore'
+import { firstAllowedPath } from '../utils/nav'
 
 export default function LoginPage() {
   const navigate = useNavigate()
+  const loadMe = useAuthStore(s => s.loadMe)
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -21,7 +24,9 @@ export default function LoginPage() {
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
       })
       localStorage.setItem('token', res.data.access_token)
-      navigate('/daily-flash')
+      const me = await loadMe()
+      if (res.data.must_change_password) navigate('/change-password')
+      else navigate(firstAllowedPath(me))
     } catch (err) {
       setError('Invalid credentials. Please try again.')
     } finally {

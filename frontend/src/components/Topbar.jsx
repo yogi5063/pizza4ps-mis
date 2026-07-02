@@ -1,7 +1,8 @@
-import React from 'react'
-import { useLocation } from 'react-router-dom'
+import React, { useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import useSettingsStore from '../store/settingsStore'
 import useFilterStore from '../store/filterStore'
+import useAuthStore from '../store/authStore'
 import { FX_RATES } from '../utils/formatters'
 import ReportsMenu from './ReportsMenu'
 
@@ -34,9 +35,17 @@ const CURRENCIES = Object.keys(FX_RATES)
 
 export default function Topbar({ onMenuClick }) {
   const location = useLocation()
+  const navigate = useNavigate()
   const { currency, setCurrency } = useSettingsStore()
   const { selectedMonths, selectedCategories, selectedChannels } = useFilterStore()
+  const { me, clear } = useAuthStore()
+  const [menuOpen, setMenuOpen] = useState(false)
   const title = PAGE_TITLES[location.pathname] || 'Dashboard'
+  const initial = (me?.full_name || me?.username || 'U').trim().charAt(0).toUpperCase()
+
+  function logout() {
+    localStorage.removeItem('token'); clear(); navigate('/login')
+  }
 
   const filterCount = selectedMonths.length + selectedCategories.length + selectedChannels.length
 
@@ -93,12 +102,41 @@ export default function Topbar({ onMenuClick }) {
         </select>
 
         {/* Profile */}
-        <div
-          className="w-8 h-8 rounded-full flex items-center justify-center font-sans font-semibold text-white text-sm cursor-pointer"
-          style={{ background: 'linear-gradient(135deg, #6958C2, #8878D8)' }}
-          title="Profile"
-        >
-          P
+        <div className="relative">
+          <div
+            onClick={() => setMenuOpen(o => !o)}
+            className="w-8 h-8 rounded-full flex items-center justify-center font-sans font-semibold text-white text-sm cursor-pointer"
+            style={{ background: 'linear-gradient(135deg, #6958C2, #8878D8)' }}
+            title={me?.username || 'Profile'}
+          >
+            {initial}
+          </div>
+          {menuOpen && (
+            <>
+              <div className="fixed inset-0" style={{ zIndex: 49 }} onClick={() => setMenuOpen(false)} />
+              <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl py-1"
+                style={{ border: '1px solid #e8e6f0', boxShadow: '0 6px 24px rgba(0,0,0,0.12)', zIndex: 50 }}>
+                <div className="px-4 py-2 border-b" style={{ borderColor: '#f0eefb' }}>
+                  <div className="text-sm font-sans font-semibold text-t1 truncate">{me?.full_name || me?.username || 'User'}</div>
+                  <div className="text-xs font-sans text-t3">{me?.role === 'super_admin' ? 'Super Admin' : 'User'}</div>
+                </div>
+                {me?.role === 'super_admin' && (
+                  <button onClick={() => { setMenuOpen(false); navigate('/users') }}
+                    className="w-full text-left px-4 py-2 text-sm font-sans text-t1 hover:bg-gray-50" style={{ cursor: 'pointer' }}>
+                    👤 Users & Access
+                  </button>
+                )}
+                <button onClick={() => { setMenuOpen(false); navigate('/change-password') }}
+                  className="w-full text-left px-4 py-2 text-sm font-sans text-t1 hover:bg-gray-50" style={{ cursor: 'pointer' }}>
+                  🔑 Change password
+                </button>
+                <button onClick={logout}
+                  className="w-full text-left px-4 py-2 text-sm font-sans hover:bg-gray-50" style={{ color: '#dc2626', cursor: 'pointer' }}>
+                  🚪 Sign out
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>
