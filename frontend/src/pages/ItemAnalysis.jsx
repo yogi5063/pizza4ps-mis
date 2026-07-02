@@ -31,7 +31,8 @@ const PALETTE = ['#6958C2', '#22c55e', '#f59e0b', '#3b82f6', '#ec4899']
 
 export default function ItemAnalysis() {
   const { currency, fxRates } = useSettingsStore()
-  const { selectedMonths, selectedCategories } = useFilterStore()
+  const { selectedMonths, selectedCategories, geo } = useFilterStore()
+  const storeCode = geo.outlet || undefined
   const [itemsData, setItemsData] = useState({})
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState(0)
@@ -42,14 +43,14 @@ export default function ItemAnalysis() {
     async function load() {
       setLoading(true)
       try {
-        const res = await api.get('/data/items').catch(() => ({ data: {} }))
+        const res = await api.get('/data/items', { params: storeCode ? { store_code: storeCode } : {} }).catch(() => ({ data: {} }))
         setItemsData(res.data || {})
       } finally {
         setLoading(false)
       }
     }
     load()
-  }, [])
+  }, [storeCode])
 
   const months = Object.keys(itemsData).sort()
   const filteredMonths = selectedMonths.length > 0 ? months.filter(m => selectedMonths.includes(m)) : months

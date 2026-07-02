@@ -26,7 +26,8 @@ const CHART_OPTS = {
 
 export default function CogsMargin() {
   const { currency, fxRates } = useSettingsStore()
-  const { selectedMonths } = useFilterStore()
+  const { selectedMonths, geo } = useFilterStore()
+  const storeCode = geo.outlet || undefined
   const [cogsData, setCogsData] = useState({})
   const [kpiData, setKpiData] = useState({})
   const [loading, setLoading] = useState(true)
@@ -37,8 +38,8 @@ export default function CogsMargin() {
       setLoading(true)
       try {
         const [cRes, kRes] = await Promise.all([
-          api.get('/data/cogs').catch(() => ({ data: {} })),
-          api.get('/data/kpi').catch(() => ({ data: {} })),
+          api.get('/data/cogs', { params: storeCode ? { store_code: storeCode } : {} }).catch(() => ({ data: {} })),
+          api.get('/data/kpi', { params: storeCode ? { store_code: storeCode } : {} }).catch(() => ({ data: {} })),
         ])
         setCogsData(cRes.data || {})
         setKpiData(kRes.data || {})
@@ -47,7 +48,7 @@ export default function CogsMargin() {
       }
     }
     load()
-  }, [])
+  }, [storeCode])
 
   const months = Object.keys(cogsData).sort()
   const filteredMonths = selectedMonths.length > 0 ? months.filter(m => selectedMonths.includes(m)) : months

@@ -30,31 +30,49 @@ DOW_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-def _get_all_months(db: Session, module: str) -> List[str]:
-    records = (
-        db.query(UploadedMonth.month_key)
-        .filter(UploadedMonth.module == module, UploadedMonth.status == "done")
-        .all()
+def _get_all_months(db: Session, module: str, store_code: Optional[str] = None) -> List[str]:
+    q = db.query(UploadedMonth.month_key).filter(
+        UploadedMonth.module == module, UploadedMonth.status == "done"
     )
-    return sorted([r.month_key for r in records])
+    if store_code:
+        q = q.filter(UploadedMonth.store_code == store_code)
+    else:
+        q = q.filter(UploadedMonth.store_code.is_(None))
+    records = q.all()
+    # Fall back to all records if combined-only query returns nothing
+    if not records and not store_code:
+        records = (
+            db.query(UploadedMonth.month_key)
+            .filter(UploadedMonth.module == module, UploadedMonth.status == "done")
+            .all()
+        )
+    return sorted({r.month_key for r in records})
 
 
-def _resolve_months(months_str: Optional[str], db: Session, module: str = "revenue") -> List[str]:
+def _resolve_months(
+    months_str: Optional[str], db: Session, module: str = "revenue",
+    store_code: Optional[str] = None,
+) -> List[str]:
     if months_str:
         return [m.strip() for m in months_str.split(",") if m.strip()]
-    return _get_all_months(db, module)
+    return _get_all_months(db, module, store_code)
 
 
-def _load_cube(db: Session, module: str, month_key: str) -> Optional[dict]:
-    record = (
-        db.query(UploadedMonth)
-        .filter(
-            UploadedMonth.module == module,
-            UploadedMonth.month_key == month_key,
-            UploadedMonth.status == "done",
-        )
-        .first()
+def _load_cube(
+    db: Session, module: str, month_key: str, store_code: Optional[str] = None,
+) -> Optional[dict]:
+    q = db.query(UploadedMonth).filter(
+        UploadedMonth.module == module,
+        UploadedMonth.month_key == month_key,
+        UploadedMonth.status == "done",
     )
+    if store_code:
+        record = q.filter(UploadedMonth.store_code == store_code).first()
+    else:
+        # Prefer combined (store_code IS NULL); fall back to first available
+        record = q.filter(UploadedMonth.store_code.is_(None)).first()
+        if not record:
+            record = q.first()
     if record and record.data_json:
         try:
             return json.loads(record.data_json)
@@ -68,14 +86,15 @@ def _load_cube(db: Session, module: str, month_key: str) -> Optional[dict]:
 @router.get("/kpi")
 async def get_kpi(
     months: Optional[str] = Query(None, description="Comma-separated YYYY-MM values"),
+    store_code: Optional[str] = Query(None, description="Filter by outlet store_code"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """KPI summary per month. Returns {month_key: {net_revenue, ...}}."""
-    month_keys = _resolve_months(months, db, "revenue")
+    month_keys = _resolve_months(months, db, "revenue", store_code)
     result = {}
     for mk in month_keys:
-        cube = _load_cube(db, "revenue", mk)
+        cube = _load_cube(db, "revenue", mk, store_code)
         if not cube:
             continue
         kpi = cube.get("kpi", {})
@@ -99,14 +118,15 @@ async def get_kpi(
 @router.get("/daily")
 async def get_daily(
     months: Optional[str] = Query(None),
+    store_code: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """Daily revenue breakdown per month. Returns {month_key: [{date, ...}]}."""
-    month_keys = _resolve_months(months, db, "revenue")
+    month_keys = _resolve_months(months, db, "revenue", store_code)
     result = {}
     for mk in month_keys:
-        cube = _load_cube(db, "revenue", mk)
+        cube = _load_cube(db, "revenue", mk, store_code)
         if not cube:
             continue
         daily = cube.get("daily", {})
@@ -132,14 +152,15 @@ async def get_daily(
 @router.get("/hourly")
 async def get_hourly(
     months: Optional[str] = Query(None),
+    store_code: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """Hourly revenue per month (IST hours 11-23). Returns {month_key: {hour: nr}}."""
-    month_keys = _resolve_months(months, db, "revenue")
+    month_keys = _resolve_months(months, db, "revenue", store_code)
     result = {}
     for mk in month_keys:
-        cube = _load_cube(db, "revenue", mk)
+        cube = _load_cube(db, "revenue", mk, store_code)
         if not cube:
             continue
         hr_sum = cube.get("hr_sum", {})
@@ -150,14 +171,15 @@ async def get_hourly(
 @router.get("/cat-ch")
 async def get_cat_ch(
     months: Optional[str] = Query(None),
+    store_code: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """Category x Channel breakdown per month."""
-    month_keys = _resolve_months(months, db, "revenue")
+    month_keys = _resolve_months(months, db, "revenue", store_code)
     result = {}
     for mk in month_keys:
-        cube = _load_cube(db, "revenue", mk)
+        cube = _load_cube(db, "revenue", mk, store_code)
         if not cube:
             continue
         cat_ch = cube.get("cat_ch", {})
@@ -182,15 +204,16 @@ async def get_cat_ch(
 @router.get("/items")
 async def get_items(
     months: Optional[str] = Query(None),
+    store_code: Optional[str] = Query(None),
     limit: int = Query(200, ge=1, le=1000),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """Item totals per month. Returns {month_key: [{item_name, ...}]}."""
-    month_keys = _resolve_months(months, db, "revenue")
+    month_keys = _resolve_months(months, db, "revenue", store_code)
     result = {}
     for mk in month_keys:
-        cube = _load_cube(db, "revenue", mk)
+        cube = _load_cube(db, "revenue", mk, store_code)
         if not cube:
             continue
         items = cube.get("items", {})
@@ -216,14 +239,15 @@ async def get_items(
 @router.get("/heatmap")
 async def get_heatmap(
     months: Optional[str] = Query(None),
+    store_code: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """DOW x Hour heatmap per month. Returns {month_key: {DOW_name: {hour: {revenue, invoices, count}}}}."""
-    month_keys = _resolve_months(months, db, "revenue")
+    month_keys = _resolve_months(months, db, "revenue", store_code)
     result = {}
     for mk in month_keys:
-        cube = _load_cube(db, "revenue", mk)
+        cube = _load_cube(db, "revenue", mk, store_code)
         if not cube:
             continue
         dow_hr = cube.get("dow_hr", {})
@@ -252,14 +276,15 @@ async def get_heatmap(
 @router.get("/table-perf")
 async def get_table_perf(
     months: Optional[str] = Query(None),
+    store_code: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """Table performance per month. Returns {month_key: {tables: {table_name: revenue}}}."""
-    month_keys = _resolve_months(months, db, "revenue")
+    month_keys = _resolve_months(months, db, "revenue", store_code)
     result = {}
     for mk in month_keys:
-        cube = _load_cube(db, "revenue", mk)
+        cube = _load_cube(db, "revenue", mk, store_code)
         if not cube:
             continue
         table_hr = cube.get("table_hr", {})
@@ -277,14 +302,15 @@ async def get_table_perf(
 @router.get("/cogs")
 async def get_cogs(
     months: Optional[str] = Query(None),
+    store_code: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """COGS summary and ingredient data per month."""
-    month_keys = _resolve_months(months, db, "cogs")
+    month_keys = _resolve_months(months, db, "cogs", store_code)
     result = {}
     for mk in month_keys:
-        cube = _load_cube(db, "cogs", mk)
+        cube = _load_cube(db, "cogs", mk, store_code)
         if not cube:
             continue
         summary = cube.get("summary", {})
@@ -335,14 +361,15 @@ async def get_cogs(
 @router.get("/discount")
 async def get_discount(
     months: Optional[str] = Query(None),
+    store_code: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """Discount breakdown per month."""
-    month_keys = _resolve_months(months, db, "revenue")
+    month_keys = _resolve_months(months, db, "revenue", store_code)
     result = {}
     for mk in month_keys:
-        cube = _load_cube(db, "revenue", mk)
+        cube = _load_cube(db, "revenue", mk, store_code)
         if not cube:
             continue
         disc_ch = cube.get("disc_ch", {})
@@ -370,14 +397,15 @@ async def get_discount(
 @router.get("/voids")
 async def get_voids(
     months: Optional[str] = Query(None),
+    store_code: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """Cancellation data per month."""
-    month_keys = _resolve_months(months, db, "revenue")
+    month_keys = _resolve_months(months, db, "revenue", store_code)
     result = {}
     for mk in month_keys:
-        cube = _load_cube(db, "revenue", mk)
+        cube = _load_cube(db, "revenue", mk, store_code)
         if not cube:
             continue
         kpi = cube.get("kpi", {})
@@ -403,14 +431,15 @@ async def get_voids(
 @router.get("/gst")
 async def get_gst(
     months: Optional[str] = Query(None),
+    store_code: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """GST breakdown by slab per month."""
-    month_keys = _resolve_months(months, db, "revenue")
+    month_keys = _resolve_months(months, db, "revenue", store_code)
     result = {}
     for mk in month_keys:
-        cube = _load_cube(db, "revenue", mk)
+        cube = _load_cube(db, "revenue", mk, store_code)
         if not cube:
             continue
         gst_slab = cube.get("gst_slab", {})
@@ -430,15 +459,16 @@ async def get_gst(
 @router.get("/top-invoices")
 async def get_top_invoices(
     months: Optional[str] = Query(None),
+    store_code: Optional[str] = Query(None),
     limit: int = Query(100, ge=1, le=500),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """Top invoices per month. Returns {month_key: [{net_revenue, channel, ...}]}."""
-    month_keys = _resolve_months(months, db, "revenue")
+    month_keys = _resolve_months(months, db, "revenue", store_code)
     result = {}
     for mk in month_keys:
-        cube = _load_cube(db, "revenue", mk)
+        cube = _load_cube(db, "revenue", mk, store_code)
         if not cube:
             continue
         invoices = cube.get("top_invoices", [])
@@ -1126,15 +1156,22 @@ async def get_pnl_from_gl(
 
 @router.get("/menu")
 async def get_menu(
+    store_code: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """Menu engineering data aggregated across all COGS months."""
-    records = (
-        db.query(UploadedMonth)
-        .filter(UploadedMonth.module == "cogs", UploadedMonth.status == "done")
-        .all()
+    q = db.query(UploadedMonth).filter(
+        UploadedMonth.module == "cogs", UploadedMonth.status == "done"
     )
+    if store_code:
+        q = q.filter(UploadedMonth.store_code == store_code)
+    else:
+        q = q.filter(UploadedMonth.store_code.is_(None))
+    records = q.all()
+    if not records and not store_code:
+        records = (db.query(UploadedMonth)
+            .filter(UploadedMonth.module == "cogs", UploadedMonth.status == "done").all())
     all_menu_eng = []
     all_exploded = []
     for record in records:

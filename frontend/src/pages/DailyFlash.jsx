@@ -27,7 +27,8 @@ const CHART_OPTS = {
 
 export default function DailyFlash() {
   const { currency, fxRates } = useSettingsStore()
-  const { selectedMonths } = useFilterStore()
+  const { selectedMonths, geo } = useFilterStore()
+  const storeCode = geo.outlet || undefined
   const [kpiData, setKpiData] = useState({})
   const [catChData, setCatChData] = useState({})
   const [itemsData, setItemsData] = useState({})
@@ -40,9 +41,9 @@ export default function DailyFlash() {
       setLoading(true)
       try {
         const [kRes, cRes, iRes] = await Promise.all([
-          api.get('/data/kpi').catch(() => ({ data: {} })),
-          api.get('/data/cat-ch').catch(() => ({ data: {} })),
-          api.get('/data/items').catch(() => ({ data: {} })),
+          api.get('/data/kpi', { params: storeCode ? { store_code: storeCode } : {} }).catch(() => ({ data: {} })),
+          api.get('/data/cat-ch', { params: storeCode ? { store_code: storeCode } : {} }).catch(() => ({ data: {} })),
+          api.get('/data/items', { params: storeCode ? { store_code: storeCode } : {} }).catch(() => ({ data: {} })),
         ])
         setKpiData(kRes.data || {})
         setCatChData(cRes.data || {})
@@ -54,7 +55,7 @@ export default function DailyFlash() {
       }
     }
     load()
-  }, [])
+  }, [storeCode])
 
   const months = Object.keys(kpiData).sort()
   // Apply filter: if selectedMonths is populated, show only those months

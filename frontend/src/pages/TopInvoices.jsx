@@ -29,7 +29,8 @@ const TOP_N_OPTIONS = [10, 20, 30, 50, 100]
 
 export default function TopInvoices() {
   const { currency, fxRates } = useSettingsStore()
-  const { selectedMonths } = useFilterStore()
+  const { selectedMonths, geo } = useFilterStore()
+  const storeCode = geo.outlet || undefined
   const [invoicesData, setInvoicesData] = useState({})
   const [kpiData, setKpiData] = useState({})
   const [loading, setLoading] = useState(true)
@@ -40,8 +41,8 @@ export default function TopInvoices() {
       setLoading(true)
       try {
         const [iRes, kRes] = await Promise.all([
-          api.get('/data/top-invoices').catch(() => ({ data: {} })),
-          api.get('/data/kpi').catch(() => ({ data: {} })),
+          api.get('/data/top-invoices', { params: storeCode ? { store_code: storeCode } : {} }).catch(() => ({ data: {} })),
+          api.get('/data/kpi', { params: storeCode ? { store_code: storeCode } : {} }).catch(() => ({ data: {} })),
         ])
         setInvoicesData(iRes.data || {})
         setKpiData(kRes.data || {})
@@ -50,7 +51,7 @@ export default function TopInvoices() {
       }
     }
     load()
-  }, [])
+  }, [storeCode])
 
   const months = Object.keys(kpiData).sort()
   const filteredMonths = selectedMonths.length > 0 ? months.filter(m => selectedMonths.includes(m)) : months

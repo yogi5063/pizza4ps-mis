@@ -29,7 +29,8 @@ const CHART_OPTS = {
 
 export default function TablePerformance() {
   const { currency, fxRates } = useSettingsStore()
-  const { selectedMonths } = useFilterStore()
+  const { selectedMonths, geo } = useFilterStore()
+  const storeCode = geo.outlet || undefined
   const [heatmapData, setHeatmapData] = useState({})
   const [tablePerfData, setTablePerfData] = useState({})
   const [kpiData, setKpiData] = useState({})
@@ -41,9 +42,9 @@ export default function TablePerformance() {
       setLoading(true)
       try {
         const [hRes, tRes, kRes] = await Promise.all([
-          api.get('/data/heatmap').catch(() => ({ data: {} })),
-          api.get('/data/table-performance').catch(() => ({ data: {} })),
-          api.get('/data/kpi').catch(() => ({ data: {} })),
+          api.get('/data/heatmap', { params: storeCode ? { store_code: storeCode } : {} }).catch(() => ({ data: {} })),
+          api.get('/data/table-performance', { params: storeCode ? { store_code: storeCode } : {} }).catch(() => ({ data: {} })),
+          api.get('/data/kpi', { params: storeCode ? { store_code: storeCode } : {} }).catch(() => ({ data: {} })),
         ])
         setHeatmapData(hRes.data || {})
         setTablePerfData(tRes.data || {})
@@ -53,7 +54,7 @@ export default function TablePerformance() {
       }
     }
     load()
-  }, [])
+  }, [storeCode])
 
   const months = Object.keys(kpiData).sort()
   const filteredMonths = selectedMonths.length > 0 ? months.filter(m => selectedMonths.includes(m)) : months

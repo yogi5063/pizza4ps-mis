@@ -40,7 +40,8 @@ const DAILY_COLUMNS = [
 
 export default function MonthlyDetail() {
   const { currency, fxRates } = useSettingsStore()
-  const { selectedMonths } = useFilterStore()
+  const { selectedMonths, geo } = useFilterStore()
+  const storeCode = geo.outlet || undefined
   const [kpiData, setKpiData] = useState({})
   const [dailyData, setDailyData] = useState({})
   const [catChData, setCatChData] = useState({})
@@ -53,9 +54,9 @@ export default function MonthlyDetail() {
       setLoading(true)
       try {
         const [kRes, dRes, cRes] = await Promise.all([
-          api.get('/data/kpi').catch(() => ({ data: {} })),
-          api.get('/data/daily').catch(() => ({ data: {} })),
-          api.get('/data/cat-ch').catch(() => ({ data: {} })),
+          api.get('/data/kpi', { params: storeCode ? { store_code: storeCode } : {} }).catch(() => ({ data: {} })),
+          api.get('/data/daily', { params: storeCode ? { store_code: storeCode } : {} }).catch(() => ({ data: {} })),
+          api.get('/data/cat-ch', { params: storeCode ? { store_code: storeCode } : {} }).catch(() => ({ data: {} })),
         ])
         setKpiData(kRes.data || {})
         setDailyData(dRes.data || {})
@@ -67,7 +68,7 @@ export default function MonthlyDetail() {
       }
     }
     load()
-  }, [])
+  }, [storeCode])
 
   const months = Object.keys(kpiData).sort()
   // Show only the months selected by the filter; fall back to all if none selected

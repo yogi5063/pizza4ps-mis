@@ -46,14 +46,18 @@ def _upsert_month(
     message: Optional[str] = None,
     original_filename: Optional[str] = None,
     stored_filename: Optional[str] = None,
+    store_code: Optional[str] = None,
 ) -> UploadedMonth:
-    record = (
-        db.query(UploadedMonth)
-        .filter(UploadedMonth.module == module, UploadedMonth.month_key == month_key)
-        .first()
+    q = db.query(UploadedMonth).filter(
+        UploadedMonth.module == module, UploadedMonth.month_key == month_key
     )
+    if store_code:
+        q = q.filter(UploadedMonth.store_code == store_code)
+    else:
+        q = q.filter(UploadedMonth.store_code.is_(None))
+    record = q.first()
     if record is None:
-        record = UploadedMonth(module=module, month_key=month_key)
+        record = UploadedMonth(module=module, month_key=month_key, store_code=store_code)
         db.add(record)
     record.status = status
     if data_json is not None:
@@ -71,10 +75,10 @@ def _upsert_month(
 
 # ── Background task: Revenue ──────────────────────────────────────────────────
 
-def _process_revenue(file_path: str, month_key: str) -> None:
+def _process_revenue(file_path: str, month_key: str, store_code: Optional[str] = None) -> None:
     db = SessionLocal()
     try:
-        logger.info("Processing revenue file: %s  month: %s", file_path, month_key)
+        logger.info("Processing revenue file: %s  month: %s  store_code: %s", file_path, month_key, store_code)
 
         result = parse_revenue_file(file_path, month_key)
         active_txs = result["transactions"]
@@ -95,36 +99,38 @@ def _process_revenue(file_path: str, month_key: str) -> None:
         data_json = json.dumps(cubes, default=str)
         _upsert_month(db, "revenue", month_key, "done", data_json=data_json,
                       message=f"Parsed {len(active_txs)} active rows, "
-                              f"{len(cancelled_txs)} cancelled rows.")
+                              f"{len(cancelled_txs)} cancelled rows.",
+                      store_code=store_code)
         logger.info("Revenue processing done for %s", month_key)
 
     except Exception as exc:
         logger.error("Revenue processing failed: %s", traceback.format_exc())
         _upsert_month(db, "revenue", month_key, "error",
-                      message=str(exc)[:500])
+                      message=str(exc)[:500], store_code=store_code)
     finally:
         db.close()
 
 
 # ── Background task: COGS ─────────────────────────────────────────────────────
 
-def _process_cogs(file_path: str, month_key: str) -> None:
+def _process_cogs(file_path: str, month_key: str, store_code: Optional[str] = None) -> None:
     db = SessionLocal()
     try:
-        logger.info("Processing COGS file: %s  month: %s", file_path, month_key)
+        logger.info("Processing COGS file: %s  month: %s  store_code: %s", file_path, month_key, store_code)
 
-        # Try to pull net_revenue + service_charge from existing revenue upload
+        # Try to pull net_revenue + service_charge from matching revenue upload
         net_revenue = 0.0
         service_charge = 0.0
-        rev_record = (
-            db.query(UploadedMonth)
-            .filter(
-                UploadedMonth.module == "revenue",
-                UploadedMonth.month_key == month_key,
-                UploadedMonth.status == "done",
-            )
-            .first()
+        rev_q = db.query(UploadedMonth).filter(
+            UploadedMonth.module == "revenue",
+            UploadedMonth.month_key == month_key,
+            UploadedMonth.status == "done",
         )
+        if store_code:
+            rev_q = rev_q.filter(UploadedMonth.store_code == store_code)
+        else:
+            rev_q = rev_q.filter(UploadedMonth.store_code.is_(None))
+        rev_record = rev_q.first()
         if rev_record and rev_record.data_json:
             try:
                 rev_data = json.loads(rev_record.data_json)
@@ -140,13 +146,14 @@ def _process_cogs(file_path: str, month_key: str) -> None:
         result = parse_cogs_file(file_path, month_key, net_revenue, service_charge)
         data_json = json.dumps(result, default=str)
         _upsert_month(db, "cogs", month_key, "done", data_json=data_json,
-                      message=f"COGS parsed. Accounting COG: {result['summary']['accounting_cog']:.2f}")
+                      message=f"COGS parsed. Accounting COG: {result['summary']['accounting_cog']:.2f}",
+                      store_code=store_code)
         logger.info("COGS processing done for %s", month_key)
 
     except Exception as exc:
         logger.error("COGS processing failed: %s", traceback.format_exc())
         _upsert_month(db, "cogs", month_key, "error",
-                      message=str(exc)[:500])
+                      message=str(exc)[:500], store_code=store_code)
     finally:
         db.close()
 
@@ -167,15 +174,17 @@ async def upload_revenue(
     form = await request.form(max_files=10, max_fields=20)
     file = form.get("file")
     month_key = form.get("month_key", "")
+    store_code = form.get("store_code") or None  # optional outlet tag
 
     if not file or not hasattr(file, "read"):
         raise HTTPException(status_code=400, detail="No file uploaded")
     if not re.match(r"^\d{4}-\d{2}$", month_key):
         raise HTTPException(status_code=400, detail="month_key must be YYYY-MM format")
 
-    # Save file
+    # Save file (include store_code in filename when outlet-specific)
     suffix = Path(file.filename).suffix if file.filename else ".xlsx"
-    dest_path = UPLOAD_DIR / f"revenue_{month_key}{suffix}"
+    sc_tag = f"_{store_code}" if store_code else ""
+    dest_path = UPLOAD_DIR / f"revenue_{month_key}{sc_tag}{suffix}"
     content = await file.read()
     with open(dest_path, "wb") as buf:
         buf.write(content)
@@ -183,14 +192,16 @@ async def upload_revenue(
     # Mark as processing
     _upsert_month(db, "revenue", month_key, "processing",
                   message="File uploaded, processing started.",
-                  original_filename=file.filename, stored_filename=dest_path.name)
+                  original_filename=file.filename, stored_filename=dest_path.name,
+                  store_code=store_code)
 
     # Process in background
-    background_tasks.add_task(_process_revenue, str(dest_path), month_key)
+    background_tasks.add_task(_process_revenue, str(dest_path), month_key, store_code)
 
     return {
         "module": "revenue",
         "month_key": month_key,
+        "store_code": store_code,
         "status": "processing",
         "message": "File uploaded. Processing started in background.",
         "filename": file.filename,
@@ -209,6 +220,7 @@ async def upload_cogs(
     form = await request.form(max_files=10, max_fields=20)
     file = form.get("file")
     month_key = form.get("month_key", "")
+    store_code = form.get("store_code") or None  # optional outlet tag
 
     if not file or not hasattr(file, "read"):
         raise HTTPException(status_code=400, detail="No file uploaded")
@@ -216,20 +228,23 @@ async def upload_cogs(
         raise HTTPException(status_code=400, detail="month_key must be YYYY-MM format")
 
     suffix = Path(file.filename).suffix if file.filename else ".xlsx"
-    dest_path = UPLOAD_DIR / f"cogs_{month_key}{suffix}"
+    sc_tag = f"_{store_code}" if store_code else ""
+    dest_path = UPLOAD_DIR / f"cogs_{month_key}{sc_tag}{suffix}"
     content = await file.read()
     with open(dest_path, "wb") as buf:
         buf.write(content)
 
     _upsert_month(db, "cogs", month_key, "processing",
                   message="File uploaded, processing started.",
-                  original_filename=file.filename, stored_filename=dest_path.name)
+                  original_filename=file.filename, stored_filename=dest_path.name,
+                  store_code=store_code)
 
-    background_tasks.add_task(_process_cogs, str(dest_path), month_key)
+    background_tasks.add_task(_process_cogs, str(dest_path), month_key, store_code)
 
     return {
         "module": "cogs",
         "month_key": month_key,
+        "store_code": store_code,
         "status": "processing",
         "message": "File uploaded. Processing started in background.",
         "filename": file.filename,
@@ -476,6 +491,7 @@ async def get_upload_status(
             "id": r.id,
             "module": r.module,
             "month_key": r.month_key,
+            "store_code": r.store_code,
             "status": r.status,
             "message": r.message,
             "uploaded_at": str(r.uploaded_at) if r.uploaded_at else None,

@@ -26,7 +26,8 @@ const CHART_OPTS = {
 
 export default function SalesVsCogs() {
   const { currency, fxRates } = useSettingsStore()
-  const { selectedMonths } = useFilterStore()
+  const { selectedMonths, geo } = useFilterStore()
+  const storeCode = geo.outlet || undefined
   const [cogsData, setCogsData] = useState({})
   const [catChData, setCatChData] = useState({})
   const [kpiData, setKpiData] = useState({})
@@ -37,9 +38,9 @@ export default function SalesVsCogs() {
       setLoading(true)
       try {
         const [cRes, catRes, kRes] = await Promise.all([
-          api.get('/data/cogs').catch(() => ({ data: {} })),
-          api.get('/data/cat-ch').catch(() => ({ data: {} })),
-          api.get('/data/kpi').catch(() => ({ data: {} })),
+          api.get('/data/cogs', { params: storeCode ? { store_code: storeCode } : {} }).catch(() => ({ data: {} })),
+          api.get('/data/cat-ch', { params: storeCode ? { store_code: storeCode } : {} }).catch(() => ({ data: {} })),
+          api.get('/data/kpi', { params: storeCode ? { store_code: storeCode } : {} }).catch(() => ({ data: {} })),
         ])
         setCogsData(cRes.data || {})
         setCatChData(catRes.data || {})
@@ -49,7 +50,7 @@ export default function SalesVsCogs() {
       }
     }
     load()
-  }, [])
+  }, [storeCode])
 
   const months = Object.keys(kpiData).sort()
   const filteredMonths = selectedMonths.length > 0 ? months.filter(m => selectedMonths.includes(m)) : months

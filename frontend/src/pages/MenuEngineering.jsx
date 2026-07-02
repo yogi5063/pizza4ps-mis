@@ -31,7 +31,8 @@ function getQuadrant(qty, gpPct, avgQty, targetGp) {
 
 export default function MenuEngineering() {
   const { currency, fxRates } = useSettingsStore()
-  const { selectedMonths, selectedCategories } = useFilterStore()
+  const { selectedMonths, selectedCategories, geo } = useFilterStore()
+  const storeCode = geo.outlet || undefined
   const [menuData, setMenuData] = useState([])
   const [loading, setLoading] = useState(true)
   const [targetGp, setTargetGp] = useState(0.65)
@@ -41,7 +42,7 @@ export default function MenuEngineering() {
     async function load() {
       setLoading(true)
       try {
-        const res = await api.get('/data/menu').catch(() => ({ data: {} }))
+        const res = await api.get('/data/menu', { params: storeCode ? { store_code: storeCode } : {} }).catch(() => ({ data: {} }))
         const data = res.data || {}
         const menuItems = data.menu_engineering || []
         setMenuData(Array.isArray(menuItems) ? menuItems : [])
@@ -53,7 +54,7 @@ export default function MenuEngineering() {
       }
     }
     load()
-  }, [])
+  }, [storeCode])
 
   const filteredMenu = useMemo(() => {
     let d = menuData

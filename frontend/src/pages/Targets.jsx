@@ -25,7 +25,8 @@ const CHART_OPTS = {
 
 export default function Targets() {
   const { currency, fxRates } = useSettingsStore()
-  const { selectedMonths } = useFilterStore()
+  const { selectedMonths, geo } = useFilterStore()
+  const storeCode = geo.outlet || undefined
   const [kpiData, setKpiData] = useState({})
   const [targets, setTargets] = useState({})
   const [loading, setLoading] = useState(true)
@@ -36,7 +37,7 @@ export default function Targets() {
       setLoading(true)
       try {
         const [kRes, tRes] = await Promise.all([
-          api.get('/data/kpi').catch(() => ({ data: {} })),
+          api.get('/data/kpi', { params: storeCode ? { store_code: storeCode } : {} }).catch(() => ({ data: {} })),
           api.get('/settings/targets').catch(() => ({ data: {} })),
         ])
         setKpiData(kRes.data || {})
@@ -46,7 +47,7 @@ export default function Targets() {
       }
     }
     load()
-  }, [])
+  }, [storeCode])
 
   const months = Object.keys(kpiData).sort()
   // Apply filter — show only selected months; fall back to all

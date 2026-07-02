@@ -30,7 +30,8 @@ const DOW = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
 export default function Overview() {
   const { currency, fxRates } = useSettingsStore()
-  const { selectedMonths, selectedCategories, selectedChannels } = useFilterStore()
+  const { selectedMonths, selectedCategories, selectedChannels, geo } = useFilterStore()
+  const storeCode = geo.outlet || undefined
   const [kpiData, setKpiData] = useState({})
   const [catChData, setCatChData] = useState({})
   const [hourlyData, setHourlyData] = useState({})
@@ -45,10 +46,10 @@ export default function Overview() {
       setLoading(true)
       try {
         const [kRes, cRes, hRes, dRes] = await Promise.all([
-          api.get('/data/kpi').catch(() => ({ data: {} })),
-          api.get('/data/cat-ch').catch(() => ({ data: {} })),
-          api.get('/data/hourly').catch(() => ({ data: {} })),
-          api.get('/data/daily').catch(() => ({ data: {} })),
+          api.get('/data/kpi', { params: storeCode ? { store_code: storeCode } : {} }).catch(() => ({ data: {} })),
+          api.get('/data/cat-ch', { params: storeCode ? { store_code: storeCode } : {} }).catch(() => ({ data: {} })),
+          api.get('/data/hourly', { params: storeCode ? { store_code: storeCode } : {} }).catch(() => ({ data: {} })),
+          api.get('/data/daily', { params: storeCode ? { store_code: storeCode } : {} }).catch(() => ({ data: {} })),
         ])
         setKpiData(kRes.data || {})
         setCatChData(cRes.data || {})
@@ -59,7 +60,7 @@ export default function Overview() {
       }
     }
     load()
-  }, [])
+  }, [storeCode])
 
   const months = Object.keys(kpiData).sort()
   const filteredMonths = selectedMonths.length > 0 ? months.filter(m => selectedMonths.includes(m)) : months

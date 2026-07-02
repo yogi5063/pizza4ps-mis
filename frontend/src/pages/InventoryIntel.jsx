@@ -19,7 +19,8 @@ const TABS = ['Variance Analysis', 'Item-wise Consumption']
 
 export default function InventoryIntel() {
   const { currency, fxRates } = useSettingsStore()
-  const { selectedMonths } = useFilterStore()
+  const { selectedMonths, geo } = useFilterStore()
+  const storeCode = geo.outlet || undefined
   const [cogsData, setCogsData] = useState({})
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState(0)
@@ -28,14 +29,14 @@ export default function InventoryIntel() {
     async function load() {
       setLoading(true)
       try {
-        const res = await api.get('/data/cogs').catch(() => ({ data: {} }))
+        const res = await api.get('/data/cogs', { params: storeCode ? { store_code: storeCode } : {} }).catch(() => ({ data: {} }))
         setCogsData(res.data || {})
       } finally {
         setLoading(false)
       }
     }
     load()
-  }, [])
+  }, [storeCode])
 
   const months = Object.keys(cogsData).sort()
   const filteredMonths = selectedMonths.length > 0 ? months.filter(m => selectedMonths.includes(m)) : months

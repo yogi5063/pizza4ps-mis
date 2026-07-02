@@ -27,7 +27,8 @@ const CHART_OPTS = {
 
 export default function DiscountAnalysis() {
   const { currency, fxRates } = useSettingsStore()
-  const { selectedMonths } = useFilterStore()
+  const { selectedMonths, geo } = useFilterStore()
+  const storeCode = geo.outlet || undefined
   const [discountData, setDiscountData] = useState({})
   const [kpiData, setKpiData] = useState({})
   const [loading, setLoading] = useState(true)
@@ -37,8 +38,8 @@ export default function DiscountAnalysis() {
       setLoading(true)
       try {
         const [dRes, kRes] = await Promise.all([
-          api.get('/data/discount').catch(() => ({ data: {} })),
-          api.get('/data/kpi').catch(() => ({ data: {} })),
+          api.get('/data/discount', { params: storeCode ? { store_code: storeCode } : {} }).catch(() => ({ data: {} })),
+          api.get('/data/kpi', { params: storeCode ? { store_code: storeCode } : {} }).catch(() => ({ data: {} })),
         ])
         setDiscountData(dRes.data || {})
         setKpiData(kRes.data || {})
@@ -47,7 +48,7 @@ export default function DiscountAnalysis() {
       }
     }
     load()
-  }, [])
+  }, [storeCode])
 
   const months = Object.keys(kpiData).sort()
   const filteredMonths = selectedMonths.length > 0 ? months.filter(m => selectedMonths.includes(m)) : months

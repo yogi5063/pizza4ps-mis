@@ -9,7 +9,8 @@ import useFilterStore from '../store/filterStore'
 
 export default function GstSummary() {
   const { currency, fxRates } = useSettingsStore()
-  const { selectedMonths } = useFilterStore()
+  const { selectedMonths, geo } = useFilterStore()
+  const storeCode = geo.outlet || undefined
   const [gstData, setGstData] = useState({})
   const [kpiData, setKpiData] = useState({})
   const [loading, setLoading] = useState(true)
@@ -19,8 +20,8 @@ export default function GstSummary() {
       setLoading(true)
       try {
         const [gRes, kRes] = await Promise.all([
-          api.get('/data/gst').catch(() => ({ data: {} })),
-          api.get('/data/kpi').catch(() => ({ data: {} })),
+          api.get('/data/gst', { params: storeCode ? { store_code: storeCode } : {} }).catch(() => ({ data: {} })),
+          api.get('/data/kpi', { params: storeCode ? { store_code: storeCode } : {} }).catch(() => ({ data: {} })),
         ])
         setGstData(gRes.data || {})
         setKpiData(kRes.data || {})
@@ -29,7 +30,7 @@ export default function GstSummary() {
       }
     }
     load()
-  }, [])
+  }, [storeCode])
 
   const months = Object.keys(kpiData).sort()
   const filteredMonths = selectedMonths.length > 0 ? months.filter(m => selectedMonths.includes(m)) : months

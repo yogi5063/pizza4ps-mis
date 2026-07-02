@@ -3,6 +3,24 @@ import api from '../utils/api'
 import useSettingsStore from '../store/settingsStore'
 import { FX_RATES, FX_SYMBOLS } from '../utils/formatters'
 
+function useOutlets() {
+  const [outlets, setOutlets] = useState([])
+  useEffect(() => {
+    api.get('/masters/tree').then(r => {
+      const all = []
+      for (const c of (r.data?.countries || [])) {
+        for (const l of (c.locations || [])) {
+          for (const o of (l.outlets || [])) {
+            if (o.active) all.push({ code: o.code, name: o.name })
+          }
+        }
+      }
+      setOutlets(all)
+    }).catch(() => {})
+  }, [])
+  return outlets
+}
+
 const MONTH_OPTIONS = []
 for (let y = 2023; y <= 2026; y++) {
   for (let m = 1; m <= 12; m++) {
@@ -13,10 +31,12 @@ for (let y = 2023; y <= 2026; y++) {
 
 function UploadCard({ type, label, icon, onUpload, loadedMonths = [] }) {
   const [selectedMonth, setSelectedMonth] = useState('')
+  const [storeCode, setStoreCode] = useState('')
   const [dragging, setDragging] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [message, setMessage] = useState(null)
   const fileRef = useRef()
+  const outlets = useOutlets()
 
   async function handleFile(file) {
     if (!file || !selectedMonth) {
@@ -28,11 +48,13 @@ function UploadCard({ type, label, icon, onUpload, loadedMonths = [] }) {
     const formData = new FormData()
     formData.append('file', file)
     formData.append('month_key', selectedMonth)
+    if (storeCode) formData.append('store_code', storeCode)
     try {
       await api.post(`/upload/${type}`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       })
-      setMessage({ type: 'success', text: `${label} data uploaded for ${selectedMonth}` })
+      const outletLabel = storeCode ? ` (${storeCode})` : ' (Combined)'
+      setMessage({ type: 'success', text: `${label} data uploaded for ${selectedMonth}${outletLabel}` })
       onUpload()
     } catch (err) {
       setMessage({ type: 'error', text: err.response?.data?.detail || 'Upload failed. Check file format.' })
@@ -73,6 +95,22 @@ function UploadCard({ type, label, icon, onUpload, loadedMonths = [] }) {
               const label = new Date(+y, +mo - 1).toLocaleString('en', { month: 'short', year: 'numeric' })
               return <option key={m} value={m}>{label}</option>
             })}
+        </select>
+      </div>
+
+      {/* Outlet selector */}
+      <div>
+        <label className="text-xs font-sans font-medium text-t2 mb-1.5 block uppercase tracking-wide">
+          Outlet <span style={{ color: '#a8a6c0', fontWeight: 400 }}>(leave blank = combined all outlets)</span>
+        </label>
+        <select
+          value={storeCode}
+          onChange={e => setStoreCode(e.target.value)}
+          className="w-full px-3 py-2 rounded-lg text-sm font-sans outline-none"
+          style={{ border: '1px solid #e8e6f0', color: '#1a1830' }}
+        >
+          <option value="">All Outlets (Combined)</option>
+          {outlets.map(o => <option key={o.code} value={o.code}>{o.name} ({o.code})</option>)}
         </select>
       </div>
 
@@ -439,6 +477,7 @@ export default function Admin() {
                 <tr className="text-t3 uppercase tracking-wide border-b" style={{ borderColor: '#f0eefb' }}>
                   <th className="text-left py-2 pr-4">Module</th>
                   <th className="text-left py-2 pr-4">Month</th>
+                  <th className="text-left py-2 pr-4">Outlet</th>
                   <th className="text-left py-2 pr-4">Status</th>
                   <th className="text-left py-2">Message</th>
                 </tr>
@@ -448,6 +487,7 @@ export default function Admin() {
                   <tr key={r.id} className="border-b" style={{ borderColor: '#f8f7fd' }}>
                     <td className="py-2 pr-4 font-medium text-t1 capitalize">{r.module}</td>
                     <td className="py-2 pr-4 font-mono text-t1">{r.month_key}</td>
+                    <td className="py-2 pr-4 font-mono text-t2 text-xs">{r.store_code || '—'}</td>
                     <td className="py-2 pr-4">
                       <span className="px-2 py-0.5 rounded-full font-semibold" style={{
                         background: r.status === 'done' ? '#f0fdf4' : r.status === 'error' ? '#fef2f2' : '#fffbeb',

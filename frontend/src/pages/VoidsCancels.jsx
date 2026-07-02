@@ -26,7 +26,8 @@ const CHART_OPTS = {
 
 export default function VoidsCancels() {
   const { currency, fxRates } = useSettingsStore()
-  const { selectedMonths } = useFilterStore()
+  const { selectedMonths, geo } = useFilterStore()
+  const storeCode = geo.outlet || undefined
   const [voidsData, setVoidsData] = useState({})
   const [kpiData, setKpiData] = useState({})
   const [loading, setLoading] = useState(true)
@@ -36,8 +37,8 @@ export default function VoidsCancels() {
       setLoading(true)
       try {
         const [vRes, kRes] = await Promise.all([
-          api.get('/data/voids').catch(() => ({ data: {} })),
-          api.get('/data/kpi').catch(() => ({ data: {} })),
+          api.get('/data/voids', { params: storeCode ? { store_code: storeCode } : {} }).catch(() => ({ data: {} })),
+          api.get('/data/kpi', { params: storeCode ? { store_code: storeCode } : {} }).catch(() => ({ data: {} })),
         ])
         setVoidsData(vRes.data || {})
         setKpiData(kRes.data || {})
@@ -46,7 +47,7 @@ export default function VoidsCancels() {
       }
     }
     load()
-  }, [])
+  }, [storeCode])
 
   const months = Object.keys(kpiData).sort()
   const filteredMonths = selectedMonths.length > 0 ? months.filter(m => selectedMonths.includes(m)) : months
