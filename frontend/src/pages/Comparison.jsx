@@ -7,8 +7,10 @@ import { Bar, Line } from 'react-chartjs-2'
 import api from '../utils/api'
 import KpiCard from '../components/KpiCard'
 import ChartCard from '../components/ChartCard'
+import PageFilters from '../components/PageFilters'
 import { fc, momBadge } from '../utils/formatters'
 import useSettingsStore from '../store/settingsStore'
+import useFilterStore from '../store/filterStore'
 import { CAT_COLORS, CHANNEL_COLORS } from '../utils/colors'
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement, PointElement, ArcElement, Title, Tooltip, Legend)
@@ -28,6 +30,7 @@ const CHART_OPTS = {
 
 export default function Comparison() {
   const { currency, fxRates } = useSettingsStore()
+  const { selectedMonths } = useFilterStore()
   const [kpiData, setKpiData] = useState({})
   const [dailyData, setDailyData] = useState({})
   const [catChData, setCatChData] = useState({})
@@ -46,8 +49,8 @@ export default function Comparison() {
         setKpiData(kRes.data || {})
         setDailyData(dRes.data || {})
         setCatChData(cRes.data || {})
-        const months = Object.keys(kRes.data || {}).sort()
-        setSelected(months.slice(-2))
+        const ms = Object.keys(kRes.data || {}).sort()
+        setSelected(ms.slice(-2))
       } finally {
         setLoading(false)
       }
@@ -56,6 +59,19 @@ export default function Comparison() {
   }, [])
 
   const months = Object.keys(kpiData).sort()
+  // PageFilters controls the pool of months available to compare
+  const filtered = selectedMonths.length > 0
+    ? selectedMonths.filter(m => months.includes(m))
+    : months
+
+  // When the available pool changes, keep the intersection; default to last 2 if empty
+  useEffect(() => {
+    if (filtered.length === 0) return
+    setSelected(prev => {
+      const kept = prev.filter(m => filtered.includes(m))
+      return kept.length > 0 ? kept : filtered.slice(-2)
+    })
+  }, [filtered.join(',')])
 
   function toggleMonth(m) {
     if (selected.includes(m)) {
@@ -130,11 +146,18 @@ export default function Comparison() {
 
   return (
     <div className="flex flex-col gap-5">
-      {/* Month selector */}
+      <PageFilters months={months} />
+
+      {/* Month selector — picks from filtered pool */}
       <div className="bg-white rounded-xl p-4 flex flex-col gap-3" style={{ border: '1px solid #f0eefb' }}>
-        <div className="text-sm font-sans font-semibold text-t1">Select months to compare (max 4):</div>
+        <div className="text-sm font-sans font-semibold text-t1">
+          Select months to compare (max 4)
+          {filtered.length < months.length && (
+            <span className="ml-2 text-xs font-normal text-t3">— showing {filtered.length} of {months.length} months from filter above</span>
+          )}
+        </div>
         <div className="flex flex-wrap gap-2">
-          {months.map((m, i) => {
+          {filtered.map((m) => {
             const idx = selected.indexOf(m)
             const isSel = idx >= 0
             const color = isSel ? PALETTE[idx] : '#6b6890'

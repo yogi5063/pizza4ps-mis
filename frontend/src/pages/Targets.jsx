@@ -7,8 +7,10 @@ import { Bar } from 'react-chartjs-2'
 import api from '../utils/api'
 import KpiCard from '../components/KpiCard'
 import ChartCard from '../components/ChartCard'
+import PageFilters from '../components/PageFilters'
 import { fc, fmtPct } from '../utils/formatters'
 import useSettingsStore from '../store/settingsStore'
+import useFilterStore from '../store/filterStore'
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement, PointElement, Title, Tooltip, Legend)
 
@@ -23,6 +25,7 @@ const CHART_OPTS = {
 
 export default function Targets() {
   const { currency, fxRates } = useSettingsStore()
+  const { selectedMonths } = useFilterStore()
   const [kpiData, setKpiData] = useState({})
   const [targets, setTargets] = useState({})
   const [loading, setLoading] = useState(true)
@@ -46,6 +49,10 @@ export default function Targets() {
   }, [])
 
   const months = Object.keys(kpiData).sort()
+  // Apply filter — show only selected months; fall back to all
+  const filtered = selectedMonths.length > 0
+    ? selectedMonths.filter(m => months.includes(m))
+    : months
 
   async function saveTargets() {
     setSaving(true)
@@ -62,8 +69,8 @@ export default function Targets() {
     setTargets(prev => ({ ...prev, [month]: parseFloat(value) || 0 }))
   }
 
-  // Summary KPIs from latest month
-  const latestMonth = months[months.length - 1]
+  // Summary KPIs from latest filtered month
+  const latestMonth = filtered[filtered.length - 1]
   const latest = kpiData[latestMonth] || {}
   const latestTarget = targets[latestMonth] || 0
   const achieved = latestTarget > 0 ? latest.net_revenue / latestTarget : 0
@@ -71,19 +78,19 @@ export default function Targets() {
   const dayOfMonth = new Date().getDate()
   const projected = latest.net_revenue > 0 ? (latest.net_revenue / dayOfMonth) * daysInMonth : 0
 
-  // Chart
+  // Chart — filtered months only
   const chartData = {
-    labels: months,
+    labels: filtered,
     datasets: [
       {
         label: 'Actual Revenue',
-        data: months.map(m => kpiData[m]?.net_revenue || 0),
+        data: filtered.map(m => kpiData[m]?.net_revenue || 0),
         backgroundColor: '#6958C2cc',
         borderRadius: 6,
       },
       {
         label: 'Target',
-        data: months.map(m => targets[m] || 0),
+        data: filtered.map(m => targets[m] || 0),
         backgroundColor: '#22c55ecc',
         borderRadius: 6,
       }
@@ -102,6 +109,8 @@ export default function Targets() {
 
   return (
     <div className="flex flex-col gap-5">
+      <PageFilters months={months} />
+
       {/* KPI Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <KpiCard title="Latest Month Revenue" value={fc(latest.net_revenue, true, currency, fxRates)} icon="💰" color="#6958C2" loading={loading} />
@@ -111,15 +120,15 @@ export default function Targets() {
         <KpiCard title="Projected Month-End" value={fc(projected, true, currency, fxRates)} icon="🔮" color="#8b5cf6" loading={loading} subtitle={`based on ${dayOfMonth} days`} />
       </div>
 
-      {/* Chart */}
+      {/* Chart — filtered months */}
       <ChartCard title="Actual vs Target Revenue"
-        csvData={months.map(m => ({ month: m, actual: kpiData[m]?.net_revenue || 0, target: targets[m] || 0 }))}
+        csvData={filtered.map(m => ({ month: m, actual: kpiData[m]?.net_revenue || 0, target: targets[m] || 0 }))}
         csvFilename="targets.csv" loading={loading}
       >
         <Bar data={chartData} options={CHART_OPTS} />
       </ChartCard>
 
-      {/* Target input fields + progress */}
+      {/* Target input fields + progress — all months so you can set targets for any month */}
       <div className="bg-white rounded-xl p-6 flex flex-col gap-5" style={{ border: '1px solid #f0eefb', boxShadow: '0 1px 4px rgba(0,0,0,0.07)' }}>
         <div className="flex items-center justify-between">
           <h3 className="font-sans font-semibold text-t1">Monthly Targets</h3>

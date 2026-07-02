@@ -28,6 +28,7 @@ import PnL from './pages/PnL'
 import BalanceSheet from './pages/BalanceSheet'
 import Users from './pages/Users'
 import ChangePassword from './pages/ChangePassword'
+import Masters from './pages/Masters'
 
 function AppLayout({ children }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
@@ -93,6 +94,7 @@ export default function App() {
         <Route path="/pl" element={P('pl', <PnL />)} />
         <Route path="/bs" element={P('bs', <BalanceSheet />)} />
         <Route path="/users" element={P('users', <Users />)} />
+        <Route path="/masters" element={P('masters', <Masters />)} />
       </Routes>
     </BrowserRouter>
   )

@@ -11,6 +11,7 @@ import DataTable from '../components/DataTable'
 import PageFilters from '../components/PageFilters'
 import { fc, fmtPct, momBadge } from '../utils/formatters'
 import useSettingsStore from '../store/settingsStore'
+import useFilterStore from '../store/filterStore'
 import { CAT_COLORS, CHANNEL_COLORS } from '../utils/colors'
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement, PointElement, ArcElement, Title, Tooltip, Legend)
@@ -39,6 +40,7 @@ const DAILY_COLUMNS = [
 
 export default function MonthlyDetail() {
   const { currency, fxRates } = useSettingsStore()
+  const { selectedMonths } = useFilterStore()
   const [kpiData, setKpiData] = useState({})
   const [dailyData, setDailyData] = useState({})
   const [catChData, setCatChData] = useState({})
@@ -58,8 +60,8 @@ export default function MonthlyDetail() {
         setKpiData(kRes.data || {})
         setDailyData(dRes.data || {})
         setCatChData(cRes.data || {})
-        const months = Object.keys(kRes.data || {}).sort()
-        if (months.length > 0) setActiveTab(months[months.length - 1])
+        const ms = Object.keys(kRes.data || {}).sort()
+        if (ms.length > 0) setActiveTab(ms[ms.length - 1])
       } finally {
         setLoading(false)
       }
@@ -68,8 +70,20 @@ export default function MonthlyDetail() {
   }, [])
 
   const months = Object.keys(kpiData).sort()
-  const prevMonthIdx = months.indexOf(activeTab) - 1
-  const prevMonthKey = prevMonthIdx >= 0 ? months[prevMonthIdx] : null
+  // Show only the months selected by the filter; fall back to all if none selected
+  const filtered = selectedMonths.length > 0
+    ? selectedMonths.filter(m => months.includes(m))
+    : months
+
+  // When the filter changes, jump activeTab to the latest visible month if needed
+  useEffect(() => {
+    if (filtered.length > 0 && !filtered.includes(activeTab)) {
+      setActiveTab(filtered[filtered.length - 1])
+    }
+  }, [filtered.join(',')])
+
+  const prevMonthIdx = filtered.indexOf(activeTab) - 1
+  const prevMonthKey = prevMonthIdx >= 0 ? filtered[prevMonthIdx] : null
   const current = kpiData[activeTab] || {}
   const prev = kpiData[prevMonthKey] || {}
 
@@ -154,9 +168,11 @@ export default function MonthlyDetail() {
 
   return (
     <div className="flex flex-col gap-5">
-      {/* Month Tabs */}
+      <PageFilters months={months} />
+
+      {/* Month Tabs — shows filtered months */}
       <div className="flex gap-2 flex-wrap">
-        {months.map(m => (
+        {filtered.map(m => (
           <button
             key={m}
             onClick={() => setActiveTab(m)}

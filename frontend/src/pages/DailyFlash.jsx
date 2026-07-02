@@ -8,8 +8,10 @@ import api from '../utils/api'
 import KpiCard from '../components/KpiCard'
 import ChartCard from '../components/ChartCard'
 import AlertsPanel from '../components/AlertsPanel'
+import PageFilters from '../components/PageFilters'
 import { fc, momBadge, fmt12h } from '../utils/formatters'
 import useSettingsStore from '../store/settingsStore'
+import useFilterStore from '../store/filterStore'
 import { CAT_COLORS, CHANNEL_COLORS } from '../utils/colors'
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement, PointElement, ArcElement, Title, Tooltip, Legend)
@@ -25,6 +27,7 @@ const CHART_OPTS = {
 
 export default function DailyFlash() {
   const { currency, fxRates } = useSettingsStore()
+  const { selectedMonths } = useFilterStore()
   const [kpiData, setKpiData] = useState({})
   const [catChData, setCatChData] = useState({})
   const [itemsData, setItemsData] = useState({})
@@ -54,20 +57,20 @@ export default function DailyFlash() {
   }, [])
 
   const months = Object.keys(kpiData).sort()
-  const latestMonth = months[months.length - 1]
-  const prevMonth = months[months.length - 2]
+  // Apply filter: if selectedMonths is populated, show only those months
+  const filtered = selectedMonths.length > 0 ? selectedMonths : months
+
+  const latestMonth = filtered[filtered.length - 1]
+  const prevMonth = filtered[filtered.length - 2]
   const latest = kpiData[latestMonth] || {}
   const prev = kpiData[prevMonth] || {}
 
-  // Monthly trend chart data
-  const trendLabels = months
-  const trendValues = months.map(m => kpiData[m]?.net_revenue || 0)
-
+  // Monthly trend chart data — filtered months only
   const trendData = {
-    labels: trendLabels,
+    labels: filtered,
     datasets: [{
       label: 'Net Revenue',
-      data: trendValues,
+      data: filtered.map(m => kpiData[m]?.net_revenue || 0),
       borderColor: '#6958C2',
       backgroundColor: chartType === 'bar' ? '#6958C2cc' : 'rgba(105,88,194,0.15)',
       fill: chartType !== 'bar',
@@ -77,8 +80,8 @@ export default function DailyFlash() {
     }]
   }
 
-  // Top 5 items
-  const allItems = Object.values(itemsData).flat()
+  // Top 5 items — aggregate over filtered months only
+  const allItems = filtered.flatMap(m => itemsData[m] || [])
   const itemAgg = {}
   allItems.forEach(item => {
     if (!item?.item_name) return
@@ -96,9 +99,9 @@ export default function DailyFlash() {
     }]
   }
 
-  // Category donut
+  // Category donut — aggregate over filtered months only
   const catAgg = {}
-  Object.values(catChData).forEach(monthData => {
+  filtered.map(m => catChData[m]).filter(Boolean).forEach(monthData => {
     if (!monthData?.categories) return
     Object.entries(monthData.categories).forEach(([cat, val]) => {
       catAgg[cat] = (catAgg[cat] || 0) + (val || 0)
@@ -115,9 +118,9 @@ export default function DailyFlash() {
     }]
   }
 
-  // Channel bar
+  // Channel bar — aggregate over filtered months only
   const chAgg = {}
-  Object.values(catChData).forEach(monthData => {
+  filtered.map(m => catChData[m]).filter(Boolean).forEach(monthData => {
     if (!monthData?.channels) return
     Object.entries(monthData.channels).forEach(([ch, val]) => {
       chAgg[ch] = (chAgg[ch] || 0) + (val || 0)
@@ -159,6 +162,8 @@ export default function DailyFlash() {
 
   return (
     <div className="flex flex-col gap-5">
+      <PageFilters months={months} />
+
       <AlertsPanel kpiData={kpiData} monthsList={months} />
 
       {/* KPI Cards */}
@@ -220,7 +225,7 @@ export default function DailyFlash() {
           activeToggle={chartType}
           onToggle={setChartType}
           loading={loading}
-          csvData={months.map(m => ({ month: m, net_revenue: kpiData[m]?.net_revenue || 0 }))}
+          csvData={filtered.map(m => ({ month: m, net_revenue: kpiData[m]?.net_revenue || 0 }))}
           csvFilename="monthly_trend.csv"
         >
           {chartType === 'line'

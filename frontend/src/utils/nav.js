@@ -58,6 +58,7 @@ export const NAV_SECTIONS = [
       { icon: '⚙️', label: 'Data Upload', path: '/admin' },
       { icon: '✅', label: 'Month-End Close', path: '/month-end' },
       { icon: '👤', label: 'Users', path: '/users', superAdminOnly: true },
+      { icon: '🌍', label: 'Masters', path: '/masters', superAdminOnly: true },
     ],
   },
 ]
