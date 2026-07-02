@@ -11,6 +11,7 @@ import PageFilters from '../components/PageFilters'
 import { fc, fmtPct } from '../utils/formatters'
 import useSettingsStore from '../store/settingsStore'
 import useFilterStore from '../store/filterStore'
+import NoDataScreen from '../components/NoDataScreen'
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement, PointElement, Title, Tooltip, Legend)
 
@@ -98,15 +99,7 @@ export default function Targets() {
     ]
   }
 
-  if (!loading && months.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center h-96 gap-4">
-        <span className="text-5xl">🎯</span>
-        <h2 className="font-sans font-semibold text-t1 text-xl">No Data Uploaded</h2>
-        <p className="text-t2 font-sans text-sm">Upload revenue data in Admin to get started.</p>
-      </div>
-    )
-  }
+  if (!loading && months.length === 0) return <NoDataScreen storeCode={storeCode} />
 
   return (
     <div className="flex flex-col gap-5">

@@ -13,6 +13,7 @@ import { fc, fmt12h } from '../utils/formatters'
 import useSettingsStore from '../store/settingsStore'
 import useFilterStore from '../store/filterStore'
 import { CHANNEL_COLORS } from '../utils/colors'
+import NoDataScreen from '../components/NoDataScreen'
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement, PointElement, ArcElement, Title, Tooltip, Legend)
 
@@ -109,15 +110,7 @@ export default function TopInvoices() {
     plugins: { legend: { position: 'right', labels: { font: { family: 'DM Sans', size: 11 }, color: '#6b6890', boxWidth: 12 } } }
   }
 
-  if (!loading && months.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center h-96 gap-4">
-        <span className="text-5xl">🏆</span>
-        <h2 className="font-sans font-semibold text-t1 text-xl">No Data Uploaded</h2>
-        <p className="text-t2 font-sans text-sm">Upload revenue data in Admin to get started.</p>
-      </div>
-    )
-  }
+  if (!loading && months.length === 0) return <NoDataScreen storeCode={storeCode} />
 
   return (
     <div className="flex flex-col gap-5">
