@@ -7,7 +7,7 @@ import { Bar, Doughnut } from 'react-chartjs-2'
 import api from '../utils/api'
 import ChartCard from '../components/ChartCard'
 import DataTable from '../components/DataTable'
-import FilterBar from '../components/FilterBar'
+import PageFilters from '../components/PageFilters'
 import { fc, fmtPct } from '../utils/formatters'
 import useSettingsStore from '../store/settingsStore'
 import useFilterStore from '../store/filterStore'
@@ -146,7 +146,7 @@ export default function SalesVsCogs() {
 
   return (
     <div className="flex flex-col gap-5">
-      <FilterBar months={months} categories={[]} channels={[]} />
+      <PageFilters months={months} categories={[]} channels={[]} />
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

@@ -7,7 +7,7 @@ import { Bar, Line, Doughnut } from 'react-chartjs-2'
 import api from '../utils/api'
 import KpiCard from '../components/KpiCard'
 import ChartCard from '../components/ChartCard'
-import FilterBar from '../components/FilterBar'
+import PageFilters from '../components/PageFilters'
 import AlertsPanel from '../components/AlertsPanel'
 import CategoryIconCard from '../components/CategoryIconCard'
 import { fc, momBadge, fmt12h, fmtPct } from '../utils/formatters'
@@ -172,7 +172,7 @@ export default function Overview() {
   return (
     <div className="flex flex-col gap-5">
       <AlertsPanel kpiData={kpiData} monthsList={months} />
-      <FilterBar months={months} categories={availableCategories} channels={availableChannels} />
+      <PageFilters months={months} categories={availableCategories} channels={availableChannels} />
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

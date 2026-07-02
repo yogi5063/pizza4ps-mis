@@ -8,7 +8,7 @@ import api from '../utils/api'
 import KpiCard from '../components/KpiCard'
 import ChartCard from '../components/ChartCard'
 import DataTable from '../components/DataTable'
-import FilterBar from '../components/FilterBar'
+import PageFilters from '../components/PageFilters'
 import { fc, fmtPct } from '../utils/formatters'
 import useSettingsStore from '../store/settingsStore'
 import useFilterStore from '../store/filterStore'
@@ -143,7 +143,7 @@ export default function CogsMargin() {
 
   return (
     <div className="flex flex-col gap-5">
-      <FilterBar months={months} categories={[]} channels={[]} />
+      <PageFilters months={months} categories={[]} channels={[]} />
 
       {/* Controls */}
       <div className="flex items-center gap-3 flex-wrap">

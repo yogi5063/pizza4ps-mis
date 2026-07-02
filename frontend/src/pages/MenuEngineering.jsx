@@ -5,7 +5,7 @@ import {
 import { Scatter } from 'react-chartjs-2'
 import api from '../utils/api'
 import DataTable from '../components/DataTable'
-import FilterBar from '../components/FilterBar'
+import PageFilters from '../components/PageFilters'
 import { fc, fmtPct } from '../utils/formatters'
 import useSettingsStore from '../store/settingsStore'
 import useFilterStore from '../store/filterStore'
@@ -120,7 +120,7 @@ export default function MenuEngineering() {
 
   return (
     <div className="flex flex-col gap-5">
-      <FilterBar months={[]} categories={availableCategories} channels={[]} />
+      <PageFilters months={[]} categories={availableCategories} channels={[]} />
 
       {/* Controls */}
       <div className="flex items-center gap-4 flex-wrap">

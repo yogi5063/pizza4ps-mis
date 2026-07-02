@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react'
 import api from '../utils/api'
 import KpiCard from '../components/KpiCard'
 import DataTable from '../components/DataTable'
-import FilterBar from '../components/FilterBar'
+import PageFilters from '../components/PageFilters'
 import { fc, exportCSV } from '../utils/formatters'
 import useSettingsStore from '../store/settingsStore'
 import useFilterStore from '../store/filterStore'
@@ -85,7 +85,7 @@ export default function GstSummary() {
 
   return (
     <div className="flex flex-col gap-5">
-      <FilterBar months={months} categories={[]} channels={[]} />
+      <PageFilters months={months} categories={[]} channels={[]} />
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

@@ -7,7 +7,7 @@ import { Bar, Line } from 'react-chartjs-2'
 import api from '../utils/api'
 import DataTable from '../components/DataTable'
 import ChartCard from '../components/ChartCard'
-import FilterBar from '../components/FilterBar'
+import PageFilters from '../components/PageFilters'
 import CategoryIconCard from '../components/CategoryIconCard'
 import { fc, fmtPct } from '../utils/formatters'
 import useSettingsStore from '../store/settingsStore'
@@ -156,7 +156,7 @@ export default function ItemAnalysis() {
 
   return (
     <div className="flex flex-col gap-5">
-      <FilterBar months={months} categories={availableCategories} channels={[]} />
+      <PageFilters months={months} categories={availableCategories} channels={[]} />
 
       {/* Tabs */}
       <div className="flex gap-1 bg-white rounded-xl p-1.5 w-fit" style={{ border: '1px solid #f0eefb' }}>

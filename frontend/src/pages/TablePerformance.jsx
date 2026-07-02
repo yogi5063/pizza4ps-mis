@@ -7,7 +7,7 @@ import { Bar } from 'react-chartjs-2'
 import api from '../utils/api'
 import KpiCard from '../components/KpiCard'
 import ChartCard from '../components/ChartCard'
-import FilterBar from '../components/FilterBar'
+import PageFilters from '../components/PageFilters'
 import { fc, fmt12h } from '../utils/formatters'
 import useSettingsStore from '../store/settingsStore'
 import useFilterStore from '../store/filterStore'
@@ -124,7 +124,7 @@ export default function TablePerformance() {
 
   return (
     <div className="flex flex-col gap-5">
-      <FilterBar months={months} categories={[]} channels={[]} />
+      <PageFilters months={months} categories={[]} channels={[]} />
 
       {/* Controls */}
       <div className="flex items-center gap-3">

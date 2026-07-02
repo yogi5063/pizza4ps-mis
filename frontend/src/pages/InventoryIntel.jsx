@@ -8,7 +8,7 @@ import api from '../utils/api'
 import KpiCard from '../components/KpiCard'
 import ChartCard from '../components/ChartCard'
 import DataTable from '../components/DataTable'
-import FilterBar from '../components/FilterBar'
+import PageFilters from '../components/PageFilters'
 import { fc, fmtPct } from '../utils/formatters'
 import useSettingsStore from '../store/settingsStore'
 import useFilterStore from '../store/filterStore'
@@ -131,7 +131,7 @@ export default function InventoryIntel() {
 
   return (
     <div className="flex flex-col gap-5">
-      <FilterBar months={months} categories={[]} channels={[]} />
+      <PageFilters months={months} categories={[]} channels={[]} />
 
       {/* Tabs */}
       <div className="flex gap-1 bg-white rounded-xl p-1.5 w-fit" style={{ border: '1px solid #f0eefb' }}>
