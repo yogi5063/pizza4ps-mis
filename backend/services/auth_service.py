@@ -81,16 +81,32 @@ def get_current_user(
     return user
 
 
+def require_super_admin(current_user: User = Depends(get_current_user)) -> User:
+    """Dependency: only allow super_admin users."""
+    if getattr(current_user, "role", "user") != "super_admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Super admin access required",
+        )
+    return current_user
+
+
 def create_default_admin(db: Session) -> None:
-    """Create the default admin user if it doesn't exist."""
+    """Create the default admin user if it doesn't exist; ensure it is super_admin."""
     existing = db.query(User).filter(User.username == ADMIN_USERNAME).first()
     if not existing:
         hashed = get_password_hash(ADMIN_PASSWORD)
         admin = User(
             username=ADMIN_USERNAME,
+            full_name="Super Admin",
             hashed_password=hashed,
             is_active=True,
+            role="super_admin",
         )
         db.add(admin)
         db.commit()
         db.refresh(admin)
+    elif getattr(existing, "role", None) != "super_admin":
+        # Promote the pre-existing admin account to super_admin (migration).
+        existing.role = "super_admin"
+        db.commit()

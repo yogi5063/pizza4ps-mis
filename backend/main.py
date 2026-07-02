@@ -55,12 +55,14 @@ from routers.upload import router as upload_router
 from routers.data import router as data_router
 from routers.settings import router as settings_router
 from routers.masters import router as masters_router
+from routers.users import router as users_router
 
 app.include_router(auth_router, prefix="/api")
 app.include_router(upload_router, prefix="/api")
 app.include_router(data_router, prefix="/api")
 app.include_router(settings_router, prefix="/api")
 app.include_router(masters_router, prefix="/api")
+app.include_router(users_router, prefix="/api")
 
 # ── Static files – serve React SPA from frontend/dist ────────────────────────
 # Path(__file__).parent = backend/  →  .parent = repo root

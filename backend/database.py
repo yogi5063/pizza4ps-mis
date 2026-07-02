@@ -51,6 +51,13 @@ def run_light_migrations():
 
     wanted = {
         "uploaded_months": [("store_code", "VARCHAR")],
+        "users": [
+            ("full_name", "VARCHAR"),
+            ("role", "VARCHAR DEFAULT 'user'"),
+            ("allowed_pages", "TEXT"),
+            ("allowed_outlets", "TEXT"),
+            ("must_change_password", "BOOLEAN DEFAULT 0"),
+        ],
     }
     insp = inspect(engine)
     existing_tables = set(insp.get_table_names())
