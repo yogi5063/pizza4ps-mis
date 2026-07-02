@@ -175,6 +175,63 @@ CHECK_NO_CANDIDATES = [
 ]
 
 
+_DATE_COL_NAMES = ("date", "order date", "order_date")
+
+
+def _detect_header_idx(raw_df) -> int:
+    """The header row drifts (index 1/2/3). Find the row with 'Net amount'."""
+    for i in range(min(6, len(raw_df))):
+        row_vals = [str(v).strip().lower() for v in raw_df.iloc[i].tolist()
+                    if pd.notna(v)]
+        if any("net amount" in v for v in row_vals):
+            return i
+    return 2
+
+
+def _month_match_fraction(raw_df, month_key: str) -> float:
+    """Fraction of a sheet's rows whose transaction date falls in `month_key`.
+
+    Sheet names are unreliable (a file may hold the current month AND a prior
+    month under confusingly-named sheets), so we pick the sheet whose actual
+    dates match the month being uploaded.
+    """
+    try:
+        hi = _detect_header_idx(raw_df)
+        header = [str(h).strip().lower() if pd.notna(h) else "" for h in raw_df.iloc[hi].tolist()]
+        # These files often have TWO date-named columns ('Date' holding a time
+        # fraction and lowercase 'date' holding the real date). Mirror the main
+        # parser's _find_column: last column of a given name wins, and 'date'
+        # takes priority over 'order date'.
+        lower_to_idx = {}
+        for i, c in enumerate(header):
+            lower_to_idx[c] = i
+        date_idx = next((lower_to_idx[n] for n in _DATE_COL_NAMES if n in lower_to_idx), None)
+        if date_idx is None:
+            return 0.0
+        col = raw_df.iloc[hi + 1:, date_idx]
+        total = match = 0
+        for v in col.head(800):
+            if pd.isna(v):
+                continue
+            ym = None
+            if isinstance(v, (int, float)):
+                d = excel_serial_to_date(v)
+                ym = d.strftime("%Y-%m") if d else None
+            else:
+                try:
+                    ym = pd.to_datetime(v).strftime("%Y-%m")
+                except Exception:
+                    d = excel_serial_to_date(v)
+                    ym = d.strftime("%Y-%m") if d else None
+            if ym:
+                total += 1
+                if ym == month_key:
+                    match += 1
+        return match / total if total else 0.0
+    except Exception:
+        return 0.0
+
+
 def parse_revenue_file(file_path: str, month_key: str) -> Dict[str, Any]:
     """
     Parse a Revenue Excel file and return a dict with:
@@ -190,57 +247,49 @@ def parse_revenue_file(file_path: str, month_key: str) -> Dict[str, Any]:
     raw_df: Optional[pd.DataFrame] = None
     used_sheet = None
 
-    # 1. Exact known sheet names first (preserves behaviour for files that
-    #    already parse, e.g. Jan '_1st Jan' / Feb '_1st Mar').
-    for candidate in REVENUE_SHEET_CANDIDATES:
-        # Also try case-insensitive match
-        matched_sheet = next(
-            (s for s in sheet_names if s.strip() == candidate), None
-        )
-        if matched_sheet is None:
-            matched_sheet = next(
-                (s for s in sheet_names if s.strip().lower() == candidate.lower()), None
-            )
-        if matched_sheet:
-            df_try = _read_excel_sheet(file_path, matched_sheet, header=None, engine=engine)
-            if df_try is not None and len(df_try) > 4:
-                raw_df = df_try
-                used_sheet = matched_sheet
-                logger.info("Using sheet '%s'", used_sheet)
-                break
+    # Build an ordered list of candidate sheets: exact known names first, then
+    # any "Detail (Recalculate)*" sheet (non-draft/copy preferred). Names are
+    # unreliable, so we then choose by which sheet's DATES match month_key.
+    candidates: List[str] = []
+    for cand in REVENUE_SHEET_CANDIDATES:
+        m = next((s for s in sheet_names if s.strip() == cand), None) or \
+            next((s for s in sheet_names if s.strip().lower() == cand.lower()), None)
+        if m and m not in candidates:
+            candidates.append(m)
+    detail = [s for s in sheet_names if _re.search(r"detail \(recalculate\)", s.strip(), _re.I)]
+    non_draft = [s for s in detail if not _re.search(r"draft|copy", s, _re.I)]
+    for s in non_draft + detail:
+        if s not in candidates:
+            candidates.append(s)
 
-    # 2. Fallback: any "Detail (Recalculate)*" sheet. Month-to-month the suffix
-    #    varies (recalc date), so match by prefix. Prefer a non-draft/copy sheet
-    #    (e.g. Aug has a fuller '_09 Sep' final vs a '_Draft 01 A').
-    if raw_df is None:
-        detail = [s for s in sheet_names
-                  if _re.match(r"detail \(recalculate\)", s.strip(), _re.I)]
-        non_draft = [s for s in detail if not _re.search(r"draft|copy", s, _re.I)]
-        for matched_sheet in (non_draft or detail):
-            df_try = _read_excel_sheet(file_path, matched_sheet, header=None, engine=engine)
-            if df_try is not None and len(df_try) > 4:
-                raw_df = df_try
-                used_sheet = matched_sheet
-                logger.info("Using fallback detail sheet '%s'", used_sheet)
-                break
-
-    if raw_df is None:
-        raise ValueError(
-            f"No suitable revenue sheet found in {file_path}. "
-            f"Available: {sheet_names}"
-        )
-
-    # The header row position drifts across months (index 1, 2 or 3). Detect it
-    # by finding the first of the top rows that contains the "Net amount" column;
-    # data starts on the following row. Fall back to index 2 (original default).
-    header_idx = 2
-    for i in range(min(6, len(raw_df))):
-        row_vals = [str(v).strip().lower() for v in raw_df.iloc[i].tolist()
-                    if pd.notna(v)]
-        if any("net amount" in v for v in row_vals):
-            header_idx = i
+    best = None            # (df, sheet_name, score) fallback if nothing matches
+    for cand in candidates:
+        df_try = _read_excel_sheet(file_path, cand, header=None, engine=engine)
+        if df_try is None or len(df_try) <= 4:
+            continue
+        score = _month_match_fraction(df_try, month_key)
+        logger.info("Sheet '%s' date-match for %s = %.2f", cand, month_key, score)
+        if score >= 0.6:
+            raw_df, used_sheet = df_try, cand
+            logger.info("Selected sheet '%s' (dates match %s)", cand, month_key)
             break
-    logger.info("Detected header row at index %d", header_idx)
+        if best is None or score > best[2]:
+            best = (df_try, cand, score)
+
+    if raw_df is None:
+        if best is None:
+            raise ValueError(
+                f"No suitable revenue sheet found in {file_path}. "
+                f"Available: {sheet_names}"
+            )
+        raw_df, used_sheet, _score = best
+        logger.warning(
+            "No sheet strongly matched %s; using best '%s' (score %.2f)",
+            month_key, used_sheet, _score,
+        )
+
+    header_idx = _detect_header_idx(raw_df)
+    logger.info("Using sheet '%s', header row index %d", used_sheet, header_idx)
 
     header_row = raw_df.iloc[header_idx].tolist()
     data_rows = raw_df.iloc[header_idx + 1:].reset_index(drop=True)

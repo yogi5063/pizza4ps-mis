@@ -176,19 +176,9 @@ export default function PageFilters({ months = [], categories = [], channels = [
             </div>
           )}
 
-          <div className="flex items-center justify-between pt-1">
-            <div className="flex items-center gap-3">
-              <span className="text-xs font-sans font-semibold text-t2 uppercase tracking-wide">Status:</span>
-              {['Active', 'All', 'Inactive'].map(st => (
-                <label key={st} className="flex items-center gap-1.5 cursor-pointer">
-                  <input type="radio" name="pf-status" checked={s.selectedStatus === st}
-                    onChange={() => s.setStatus(st)} style={{ accentColor: PUR }} />
-                  <span className="text-sm font-sans text-t1">{st}</span>
-                </label>
-              ))}
-            </div>
+          <div className="flex items-center justify-end pt-1">
             <button onClick={s.clearAll} className="text-xs font-sans font-medium px-3 py-1.5 rounded-lg"
-              style={{ border: '1px solid #e8e6f0', color: '#6b6890', background: '#fff', cursor: 'pointer' }}>Reset</button>
+              style={{ border: '1px solid #e8e6f0', color: '#6b6890', background: '#fff', cursor: 'pointer' }}>Reset filters</button>
           </div>
         </div>
       )}
