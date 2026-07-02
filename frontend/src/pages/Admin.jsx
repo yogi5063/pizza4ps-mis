@@ -485,8 +485,24 @@ export default function Admin() {
               </thead>
               <tbody>
                 {loadedMonths.all.map(r => {
-                  const sc = r.store_code ? `?store_code=${encodeURIComponent(r.store_code)}` : ''
-                  const dlUrl = `/api/upload/file/${r.module}/${r.month_key}${sc}`
+                  const handleDownload = async () => {
+                    const params = r.store_code ? `?store_code=${encodeURIComponent(r.store_code)}` : ''
+                    const url = `/api/upload/file/${r.module}/${r.month_key}${params}`
+                    const token = localStorage.getItem('token')
+                    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+                    if (!res.ok) { alert('Download failed — file may no longer be on the server.'); return }
+                    const blob = await res.blob()
+                    const blobUrl = URL.createObjectURL(blob)
+                    const a = document.createElement('a')
+                    a.href = blobUrl
+                    const cd = res.headers.get('content-disposition') || ''
+                    const nameMatch = cd.match(/filename[^;=\n]*=['"]?([^'"\n]+)['"]?/i)
+                    a.download = nameMatch ? decodeURIComponent(nameMatch[1]) : `${r.module}_${r.month_key}.xlsx`
+                    document.body.appendChild(a)
+                    a.click()
+                    document.body.removeChild(a)
+                    URL.revokeObjectURL(blobUrl)
+                  }
                   return (
                     <tr key={r.id} className="border-b" style={{ borderColor: '#f8f7fd' }}>
                       <td className="py-2 pr-4 font-medium text-t1 capitalize">{r.module}</td>
@@ -504,10 +520,10 @@ export default function Admin() {
                       <td className="py-2 pr-4 text-t2 max-w-xs truncate">{r.message || '—'}</td>
                       <td className="py-2">
                         {r.has_file
-                          ? <a href={dlUrl} download className="px-2 py-1 rounded-lg text-xs font-medium font-sans"
-                              style={{ background: '#f0eefb', color: '#6958C2', border: '1px solid #c4b8ff', textDecoration: 'none' }}>
+                          ? <button onClick={handleDownload} className="px-2 py-1 rounded-lg text-xs font-medium font-sans"
+                              style={{ background: '#f0eefb', color: '#6958C2', border: '1px solid #c4b8ff', cursor: 'pointer' }}>
                               Download
-                            </a>
+                            </button>
                           : <span className="text-t3 text-xs">—</span>}
                       </td>
                     </tr>
