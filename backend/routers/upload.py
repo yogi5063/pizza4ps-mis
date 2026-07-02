@@ -28,7 +28,10 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/upload", tags=["upload"])
 
-UPLOAD_DIR = Path("./uploads")
+# Use the same persistent location as the rest of the app (a Docker volume in
+# production: UPLOAD_DIR=/data/uploads). Previously hardcoded to "./uploads",
+# which put original files on the EPHEMERAL container fs — lost on every redeploy.
+UPLOAD_DIR = Path(os.getenv("UPLOAD_DIR", "./uploads"))
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 
@@ -41,6 +44,8 @@ def _upsert_month(
     status: str,
     data_json: Optional[str] = None,
     message: Optional[str] = None,
+    original_filename: Optional[str] = None,
+    stored_filename: Optional[str] = None,
 ) -> UploadedMonth:
     record = (
         db.query(UploadedMonth)
@@ -55,6 +60,10 @@ def _upsert_month(
         record.data_json = data_json
     if message is not None:
         record.message = message
+    if original_filename is not None:
+        record.original_filename = original_filename
+    if stored_filename is not None:
+        record.stored_filename = stored_filename
     db.commit()
     db.refresh(record)
     return record
@@ -173,7 +182,8 @@ async def upload_revenue(
 
     # Mark as processing
     _upsert_month(db, "revenue", month_key, "processing",
-                  message="File uploaded, processing started.")
+                  message="File uploaded, processing started.",
+                  original_filename=file.filename, stored_filename=dest_path.name)
 
     # Process in background
     background_tasks.add_task(_process_revenue, str(dest_path), month_key)
@@ -212,7 +222,8 @@ async def upload_cogs(
         buf.write(content)
 
     _upsert_month(db, "cogs", month_key, "processing",
-                  message="File uploaded, processing started.")
+                  message="File uploaded, processing started.",
+                  original_filename=file.filename, stored_filename=dest_path.name)
 
     background_tasks.add_task(_process_cogs, str(dest_path), month_key)
 
@@ -301,7 +312,8 @@ async def upload_pnl(
         buf.write(content)
 
     _upsert_month(db, "pnl", month_key, "processing",
-                  message="P&L file uploaded, processing started.")
+                  message="P&L file uploaded, processing started.",
+                  original_filename=file.filename, stored_filename=dest_path.name)
     background_tasks.add_task(_process_pnl, str(dest_path), month_key)
 
     return {
@@ -434,7 +446,8 @@ async def upload_bs(
         buf.write(content)
 
     _upsert_month(db, "bs", store_key, "processing",
-                  message="BS file uploaded, processing started.")
+                  message="BS file uploaded, processing started.",
+                  original_filename=file.filename, stored_filename=dest_path.name)
 
     background_tasks.add_task(_process_bs, str(dest_path), month_key, mode)
 
@@ -466,9 +479,46 @@ async def get_upload_status(
             "status": r.status,
             "message": r.message,
             "uploaded_at": str(r.uploaded_at) if r.uploaded_at else None,
+            "original_filename": r.original_filename,
+            "has_file": bool(r.stored_filename and (UPLOAD_DIR / r.stored_filename).exists()),
         }
         for r in records
     ]
+
+
+@router.get("/file/{module}/{month_key}")
+async def download_uploaded_file(
+    module: str,
+    month_key: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Download the exact original file that was uploaded for this module+month.
+
+    Lets users retrieve the source workbook from the app instead of passing it
+    around over email.
+    """
+    from fastapi.responses import FileResponse
+
+    record = (
+        db.query(UploadedMonth)
+        .filter(UploadedMonth.module == module, UploadedMonth.month_key == month_key)
+        .first()
+    )
+    if not record or not record.stored_filename:
+        raise HTTPException(status_code=404, detail="No uploaded file on record")
+    path = UPLOAD_DIR / record.stored_filename
+    if not path.exists():
+        raise HTTPException(
+            status_code=404,
+            detail="Original file is no longer on the server (uploaded before file retention).",
+        )
+    download_name = record.original_filename or record.stored_filename
+    return FileResponse(
+        path=str(path),
+        filename=download_name,
+        media_type="application/octet-stream",
+    )
 
 
 @router.get("/status/{module}/{month_key}")

@@ -50,7 +50,11 @@ def run_light_migrations():
     from sqlalchemy import inspect, text
 
     wanted = {
-        "uploaded_months": [("store_code", "VARCHAR")],
+        "uploaded_months": [
+            ("store_code", "VARCHAR"),
+            ("original_filename", "VARCHAR"),
+            ("stored_filename", "VARCHAR"),
+        ],
         "users": [
             ("full_name", "VARCHAR"),
             ("role", "VARCHAR DEFAULT 'user'"),

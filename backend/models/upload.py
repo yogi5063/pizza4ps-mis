@@ -12,6 +12,10 @@ class UploadedMonth(Base):
     # Outlet this data belongs to (outlet.code, e.g. 'BGL-IDN'). NULL/'ALL' =
     # legacy/consolidated data that predates multi-store tagging.
     store_code = Column(String, nullable=True, index=True)
+    # Original file the user uploaded (for re-download) + the name it's saved as
+    # on disk under UPLOAD_DIR.
+    original_filename = Column(String, nullable=True)
+    stored_filename = Column(String, nullable=True)
     data_json = Column(Text, nullable=True)                   # Serialized aggregated data
     status = Column(String, default="processing")             # 'processing', 'done', 'error'
     message = Column(String, nullable=True)
