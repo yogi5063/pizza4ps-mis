@@ -479,27 +479,40 @@ export default function Admin() {
                   <th className="text-left py-2 pr-4">Month</th>
                   <th className="text-left py-2 pr-4">Outlet</th>
                   <th className="text-left py-2 pr-4">Status</th>
-                  <th className="text-left py-2">Message</th>
+                  <th className="text-left py-2 pr-4">Message</th>
+                  <th className="text-left py-2">File</th>
                 </tr>
               </thead>
               <tbody>
-                {loadedMonths.all.map(r => (
-                  <tr key={r.id} className="border-b" style={{ borderColor: '#f8f7fd' }}>
-                    <td className="py-2 pr-4 font-medium text-t1 capitalize">{r.module}</td>
-                    <td className="py-2 pr-4 font-mono text-t1">{r.month_key}</td>
-                    <td className="py-2 pr-4 font-mono text-t2 text-xs">{r.store_code || '—'}</td>
-                    <td className="py-2 pr-4">
-                      <span className="px-2 py-0.5 rounded-full font-semibold" style={{
-                        background: r.status === 'done' ? '#f0fdf4' : r.status === 'error' ? '#fef2f2' : '#fffbeb',
-                        color: r.status === 'done' ? '#16a34a' : r.status === 'error' ? '#dc2626' : '#d97706',
-                        border: `1px solid ${r.status === 'done' ? '#86efac' : r.status === 'error' ? '#fca5a5' : '#fde68a'}`,
-                      }}>
-                        {r.status === 'done' ? '✓ Done' : r.status === 'error' ? '✗ Error' : '⏳ Processing'}
-                      </span>
-                    </td>
-                    <td className="py-2 text-t2 max-w-xs truncate">{r.message || '—'}</td>
-                  </tr>
-                ))}
+                {loadedMonths.all.map(r => {
+                  const sc = r.store_code ? `?store_code=${encodeURIComponent(r.store_code)}` : ''
+                  const dlUrl = `/api/upload/file/${r.module}/${r.month_key}${sc}`
+                  return (
+                    <tr key={r.id} className="border-b" style={{ borderColor: '#f8f7fd' }}>
+                      <td className="py-2 pr-4 font-medium text-t1 capitalize">{r.module}</td>
+                      <td className="py-2 pr-4 font-mono text-t1">{r.month_key}</td>
+                      <td className="py-2 pr-4 font-mono text-t2 text-xs">{r.store_code || '—'}</td>
+                      <td className="py-2 pr-4">
+                        <span className="px-2 py-0.5 rounded-full font-semibold" style={{
+                          background: r.status === 'done' ? '#f0fdf4' : r.status === 'error' ? '#fef2f2' : '#fffbeb',
+                          color: r.status === 'done' ? '#16a34a' : r.status === 'error' ? '#dc2626' : '#d97706',
+                          border: `1px solid ${r.status === 'done' ? '#86efac' : r.status === 'error' ? '#fca5a5' : '#fde68a'}`,
+                        }}>
+                          {r.status === 'done' ? '✓ Done' : r.status === 'error' ? '✗ Error' : '⏳ Processing'}
+                        </span>
+                      </td>
+                      <td className="py-2 pr-4 text-t2 max-w-xs truncate">{r.message || '—'}</td>
+                      <td className="py-2">
+                        {r.has_file
+                          ? <a href={dlUrl} download className="px-2 py-1 rounded-lg text-xs font-medium font-sans"
+                              style={{ background: '#f0eefb', color: '#6958C2', border: '1px solid #c4b8ff', textDecoration: 'none' }}>
+                              Download
+                            </a>
+                          : <span className="text-t3 text-xs">—</span>}
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>

@@ -14,7 +14,7 @@ import traceback
 from pathlib import Path
 from typing import List, Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Request, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Query, Request, UploadFile
 from sqlalchemy.orm import Session
 
 from database import get_db, SessionLocal
@@ -506,21 +506,25 @@ async def get_upload_status(
 async def download_uploaded_file(
     module: str,
     month_key: str,
+    store_code: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Download the exact original file that was uploaded for this module+month.
-
-    Lets users retrieve the source workbook from the app instead of passing it
-    around over email.
-    """
+    """Download the exact original file that was uploaded for this module+month."""
     from fastapi.responses import FileResponse
 
-    record = (
-        db.query(UploadedMonth)
-        .filter(UploadedMonth.module == module, UploadedMonth.month_key == month_key)
-        .first()
+    q = db.query(UploadedMonth).filter(
+        UploadedMonth.module == module, UploadedMonth.month_key == month_key
     )
+    if store_code:
+        q = q.filter(UploadedMonth.store_code == store_code)
+    else:
+        q = q.filter(UploadedMonth.store_code.is_(None))
+    record = q.first()
+    if not record:
+        record = db.query(UploadedMonth).filter(
+            UploadedMonth.module == module, UploadedMonth.month_key == month_key
+        ).first()
     if not record or not record.stored_filename:
         raise HTTPException(status_code=404, detail="No uploaded file on record")
     path = UPLOAD_DIR / record.stored_filename
